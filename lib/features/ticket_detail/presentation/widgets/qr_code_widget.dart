@@ -18,16 +18,25 @@ Widget build(BuildContext context) {
     int.parse(ticket.time.split(':')[1]),
   );
   final isValid = ticketDateTime.isAfter(now);
+  var validity = '';
+  if (isValid == true){
+    validity = '✅Valid ticket';
+  }
+  else{
+    validity = 'invalid ticket';
+  }
 
-  final ticketData = {
-    'movie': ticket.movieName,
-    'date': ticket.date,
-    'time': ticket.time,
-    'seats': ticket.seats,
-    'id': ticket.id,
-    'isValid': isValid,
-    'validationDate': now.toIso8601String(),
-  };
+  final ticketData = '''
+    🎬 Movie: ${ticket.movieName}
+    📅 Date: ${ticket.formattedDate}
+    🕒 Time: ${ticket.formattedTime}
+    📍 Theater: ${ticket.theater}
+    💺 Seats: ${ticket.seats.join(', ')}
+    id: ${ticket.id},
+    $validity
+    validationDate: ${now.toIso8601String()},
+  ''';
+  
 
   return QrImageView(
     data: ticketData.toString(),

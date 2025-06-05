@@ -10,7 +10,7 @@ import 'package:cinema_app/features/tickets/presentation/screens/tickets_screen.
 import 'package:cinema_app/features/ticket_detail/presentation/screens/ticket_detail_screen.dart';
 
 final router = GoRouter(
-  initialLocation: '/login',
+  initialLocation: '/home',
   routes: [
     GoRoute(
       path: '/login',
