@@ -13,10 +13,7 @@ class ScanQRScreen extends StatefulWidget {
 }
 
 class _ScanQRScreenState extends State<ScanQRScreen> with SingleTickerProviderStateMixin {
-  MobileScannerController cameraController = MobileScannerController(
-    torchEnabled: false,
-    formats: [BarcodeFormat.qrCode]
-  );
+  late MobileScannerController cameraController;
   String? scannedData;
   bool _hasPermission = false;
   bool _showCamera = true;
@@ -27,24 +24,29 @@ class _ScanQRScreenState extends State<ScanQRScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    _checkCameraPermission();
+    _initializeCamera();
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
   }
 
+  void _initializeCamera() {
+    cameraController = MobileScannerController(
+      torchEnabled: false,
+      formats: [BarcodeFormat.qrCode],
+      returnImage: false,
+    );
+    _cameraInitialized = false;
+  }
+
   Future<void> _checkCameraPermission() async {
     final status = await Permission.camera.status;
     if (!status.isGranted) {
       final result = await Permission.camera.request();
-      setState(() {
-        _hasPermission = result.isGranted;
-      });
+      setState(() => _hasPermission = result.isGranted);
     } else {
-      setState(() {
-        _hasPermission = true;
-      });
+      setState(() => _hasPermission = true);
     }
   }
 
@@ -55,7 +57,6 @@ class _ScanQRScreenState extends State<ScanQRScreen> with SingleTickerProviderSt
 
     final barcodes = capture.barcodes;
     if (barcodes.isNotEmpty) {
-      // Vibrate on success
       if (await Vibration.hasVibrator() ?? false) {
         Vibration.vibrate(duration: 200);
       }
@@ -70,11 +71,14 @@ class _ScanQRScreenState extends State<ScanQRScreen> with SingleTickerProviderSt
     }
   }
 
-  void _restartScan() {
+  Future<void> _restartScan() async {
+    // Properly dispose and recreate the controller
+    cameraController.dispose();
     setState(() {
       scannedData = null;
       _showCamera = true;
-      _cameraInitialized = false;
+      _isScanning = false;
+      _initializeCamera();
     });
   }
 
@@ -109,6 +113,7 @@ class _ScanQRScreenState extends State<ScanQRScreen> with SingleTickerProviderSt
           controller: cameraController,
           onDetect: _handleQRScan,
           onScannerStarted: (arguments) {
+            if (!mounted) return;
             setState(() => _cameraInitialized = true);
           },
           errorBuilder: (context, error, child) {
