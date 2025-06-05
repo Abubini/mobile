@@ -73,7 +73,7 @@ class _CinemaLoginScreenState extends State<CinemaLoginScreen> {
     );
 
     if (context.mounted) {
-      context.go('/cinema/dashboard');
+      context.go('/cinema/home');
     }
   }
 
@@ -163,7 +163,7 @@ class _CinemaLoginScreenState extends State<CinemaLoginScreen> {
                   _passwordController.text,
                 );
                 if (success && context.mounted) {
-                  context.push('/cinema/scan');
+                  context.go('/cinema/home');
                 }
               }
             },

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:vibration/vibration.dart';
@@ -87,9 +88,14 @@ class _ScanQRScreenState extends State<ScanQRScreen> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: AppColors.darkBg,
       appBar: AppBar(
-        title: Text('Scan QR Code', style: AppStyles.heading2),
-        backgroundColor: AppColors.cardBg,
-      ),
+          title: const Text('Scan QR Code'),
+          backgroundColor: const Color(0xFF121212),
+          foregroundColor: Colors.green,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/cinema/home'),
+          ),
+        ),
       body: !_hasPermission
           ? _buildPermissionDeniedView()
           : _showCamera 
