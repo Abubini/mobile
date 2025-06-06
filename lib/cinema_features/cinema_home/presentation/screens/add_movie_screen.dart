@@ -1,9 +1,10 @@
+import 'package:cinema_app/cinema_features/cinema_home/presentation/screens/cast_input_section.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cinema_app/shared/widgets/app_button.dart';
+// import 'package:cinema_app/cinema_features/cinema_home/presentation/widgets/cast_input_section.dart';
 import 'dart:io';
-import 'package:http/http.dart' as http;
 
 class AddMovieScreen extends StatefulWidget {
   const AddMovieScreen({super.key});
@@ -19,10 +20,12 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
   final TextEditingController _lengthController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _trailerUrlController = TextEditingController();
+  final TextEditingController _costController = TextEditingController();
 
   // Image handling
   File? _imageFile;
   final ImagePicker _picker = ImagePicker();
+  List<Cast> _casts = [];
 
   // Scheduling variables
   ShowScheduleType _scheduleType = ShowScheduleType.oneTime;
@@ -47,7 +50,36 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
     _lengthController.dispose();
     _descriptionController.dispose();
     _trailerUrlController.dispose();
+    _costController.dispose();
     super.dispose();
+  }
+
+  void _clearForm() {
+    setState(() {
+      _formKey.currentState?.reset();
+      _titleController.clear();
+      _genreController.clear();
+      _lengthController.clear();
+      _descriptionController.clear();
+      _trailerUrlController.clear();
+      _costController.clear();
+      _imageFile = null;
+      _casts = [];
+      _scheduleType = ShowScheduleType.oneTime;
+      _selectedDate = null;
+      _selectedTime = null;
+      _recurringStartDate = null;
+      _recurringEndDate = null;
+      _recurringDays = {
+        DayOfWeek.monday: false,
+        DayOfWeek.tuesday: false,
+        DayOfWeek.wednesday: false,
+        DayOfWeek.thursday: false,
+        DayOfWeek.friday: false,
+        DayOfWeek.saturday: false,
+        DayOfWeek.sunday: false,
+      };
+    });
   }
 
   Future<void> _pickImage() async {
@@ -98,7 +130,6 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
     if (picked != null && picked != _recurringStartDate) {
       setState(() {
         _recurringStartDate = picked;
-        // Reset end date if it's now before start date
         if (_recurringEndDate != null && _recurringEndDate!.isBefore(picked)) {
           _recurringEndDate = null;
         }
@@ -124,10 +155,27 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
     });
   }
 
+  Future<void> _showCastInputDialog() async {
+    final List<Cast>? updatedCasts = await showDialog<List<Cast>>(
+      context: context,
+      builder: (context) {
+        return CastInputSection(
+          initialCasts: _casts,
+          onCastsAdded: (casts) => casts,
+        );
+      },
+    );
+
+    if (updatedCasts != null) {
+      setState(() {
+        _casts = updatedCasts;
+      });
+    }
+  }
+
   Future<void> _submitMovie() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Validate image
     if (_imageFile == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a movie poster image')),
@@ -135,7 +183,13 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
       return;
     }
 
-    // Validate scheduling
+    if (_casts.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one cast member')),
+      );
+      return;
+    }
+
     if (_scheduleType == ShowScheduleType.oneTime) {
       if (_selectedDate == null || _selectedTime == null) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -152,42 +206,19 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
       }
     }
 
-    // Calculate default end date if not provided (6 months from start)
+    // Default to 3 months if end date not provided
     final effectiveEndDate = _recurringEndDate ?? 
-        (_recurringStartDate?.add(const Duration(days: 180)));
+        (_recurringStartDate?.add(const Duration(days: 90)));
 
-    // Create movie data
-    final movieData = {
-      'title': _titleController.text,
-      'genre': _genreController.text,
-      'length': _lengthController.text,
-      'description': _descriptionController.text,
-      'trailerUrl': _trailerUrlController.text,
-      'scheduleType': _scheduleType.toString(),
-      'showTimes': _getShowTimes(effectiveEndDate),
-      // Add other fields as needed
-    };
+    // TODO: Implement Firebase upload
+    // 1. Upload movie poster
+    // 2. Upload cast images
+    // 3. Add movie data with references to cast images
 
-    // TODO: Upload image to Firebase Storage first, then add movie data to Firestore
-    try {
-      // 1. Upload image to Firebase Storage
-      // final imageUrl = await _uploadImageToFirebase(_imageFile!);
-      
-      // 2. Add movie data with image URL to Firestore
-      // await FirebaseFirestore.instance.collection('movies').add({
-      //   ...movieData,
-      //   'imageUrl': imageUrl,
-      // });
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Movie added successfully!')),
-      );
-      Navigator.pop(context);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding movie: $e')),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Movie added successfully!')),
+    );
+    _clearForm();
   }
 
   List<Map<String, dynamic>> _getShowTimes(DateTime? effectiveEndDate) {
@@ -200,7 +231,6 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
         }
       ];
     } else {
-      // Generate recurring show times
       final List<Map<String, dynamic>> showTimes = [];
       final days = _recurringDays.entries
           .where((entry) => entry.value)
@@ -208,7 +238,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
           .toList();
 
       DateTime currentDate = _recurringStartDate!;
-      final endDate = effectiveEndDate ?? currentDate.add(const Duration(days: 180));
+      final endDate = effectiveEndDate ?? currentDate.add(const Duration(days: 90));
       
       while (currentDate.isBefore(endDate)) {
         for (var day in days) {
@@ -312,6 +342,35 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
               ),
               const SizedBox(height: 20),
 
+              // Ticket Cost
+              TextFormField(
+                controller: _costController,
+                keyboardType: TextInputType.number,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Ticket Cost',
+                  labelStyle: TextStyle(color: Colors.grey),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.grey),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.green),
+                  ),
+                  prefixText: '\$ ',
+                  prefixStyle: TextStyle(color: Colors.white),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter ticket cost';
+                  }
+                  if (double.tryParse(value) == null) {
+                    return 'Please enter a valid number';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 20),
+
               // Description
               TextFormField(
                 controller: _descriptionController,
@@ -365,6 +424,60 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                       : Image.file(_imageFile!, fit: BoxFit.cover),
                 ),
               ),
+              const SizedBox(height: 20),
+
+              // Cast Section
+              const Text(
+                'Cast Members',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              InkWell(
+                onTap: _showCastInputDialog,
+                child: InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Add Cast Members',
+                    labelStyle: TextStyle(color: Colors.grey),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey),
+                    ),
+                    focusedBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: Colors.green),
+                    ),
+                  ),
+                  child: Text(
+                    _casts.isEmpty
+                        ? 'Tap to add cast members'
+                        : _casts.map((c) => c.name).join(', '),
+                    style: TextStyle(
+                      color: _casts.isEmpty ? Colors.grey : Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              if (_casts.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 60,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _casts.length,
+                    itemBuilder: (context, index) {
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: CircleAvatar(
+                          radius: 30,
+                          backgroundImage: FileImage(_casts[index].imageFile),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
               const SizedBox(height: 20),
 
               // Trailer URL
@@ -507,14 +620,14 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                             labelStyle: const TextStyle(color: Colors.grey),
                             suffixIcon: _recurringEndDate == null
                                 ? const Tooltip(
-                                    message: 'If not set, will default to 6 months from start date',
+                                    message: 'If not set, will default to 3 months from start date',
                                     child: Icon(Icons.info_outline, color: Colors.grey, size: 18),
                                   )
                                 : null,
                           ),
                           child: Text(
                             _recurringEndDate == null
-                                ? 'Not set (default: 6 months)'
+                                ? 'Not set (default: 3 months)'
                                 : DateFormat('MMM dd, yyyy').format(_recurringEndDate!),
                             style: TextStyle(
                               color: _recurringEndDate == null ? Colors.grey : Colors.white,
@@ -567,10 +680,24 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                 ),
               ],
               const SizedBox(height: 40),
-              // Submit Button
-              AppButton(
-                text: 'Post Movie',
-                onPressed: _submitMovie,
+              // Action Buttons
+              Row(
+                children: [
+                  Expanded(
+                    child: AppButton(
+                      text: 'Clear',
+                      backgroundColor: Colors.red,
+                      onPressed: _clearForm,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: AppButton(
+                      text: 'Post Movie',
+                      onPressed: _submitMovie,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
             ],
