@@ -101,7 +101,7 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                   _showVideo = false;
                 });
               } else {
-                context.push('/cinema/home');
+                context.go('/cinema/home');
               }
             },
           ),

@@ -1,3 +1,4 @@
+import 'package:cinema_app/cinema_features/cinema_home/presentation/screens/add_movie_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -11,7 +12,7 @@ import '../cinema_features/cinema_auth/screens/cinema_signup_screen.dart';
 import '../cinema_features/qr_code/screens/scan_qr_screen.dart';
 
 final cinemaRouter = GoRouter(
-  initialLocation: '/cinema/login',
+  initialLocation: '/cinema/home',
   routes: [
     GoRoute(
       path: '/cinema/login',
@@ -33,6 +34,10 @@ final cinemaRouter = GoRouter(
       builder: (context, state) => CinemaMovieDetailScreen(
         movie: state.extra as Movie,
       ),
+    ),
+    GoRoute(
+      path: '/cinema/add-movie',
+      builder: (context, state) => const AddMovieScreen(),
     ),
     GoRoute(
       path: '/cinema/signup',

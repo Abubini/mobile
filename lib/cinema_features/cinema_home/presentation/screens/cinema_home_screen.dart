@@ -176,7 +176,7 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
         FloatingActionButton(
           onPressed: () {
             // Navigate to add movie screen or other functionality
-            context.go('/cinema/add-movie');
+            context.push('/cinema/add-movie');
           },
           backgroundColor: Colors.green,
           child: const Icon(Icons.add),

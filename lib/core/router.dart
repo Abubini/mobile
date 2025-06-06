@@ -1,10 +1,6 @@
-import 'package:cinema_app/cinema_features/cinema_home/presentation/screens/cinema_home_screen.dart';
 import 'package:cinema_app/features/home/data/models/movie_model.dart';
-import 'package:cinema_app/features/home/presentation/providers/home_provider.dart';
 import 'package:cinema_app/features/tickets/data/models/ticket_model.dart';
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:provider/provider.dart';
 import 'package:cinema_app/features/auth/presentation/screens/login_screen.dart';
 import 'package:cinema_app/features/auth/presentation/screens/signup_screen.dart';
 import 'package:cinema_app/features/home/presentation/screens/home_screen.dart';
@@ -25,14 +21,9 @@ final router = GoRouter(
       builder: (context, state) => const SignupScreen(),
     ),
     GoRoute(
-  path: '/cinema/home',
-  pageBuilder: (context, state) => MaterialPage(
-    child: ChangeNotifierProvider(
-      create: (_) => HomeProvider(),
-      child: CinemaHomeScreen(),
+      path: '/home',
+      builder: (context, state) => const HomeScreen(),
     ),
-  ),
-),
     GoRoute(
       path: '/movie-detail',
       builder: (context, state) => MovieDetailScreen(movie: state.extra as Movie),
