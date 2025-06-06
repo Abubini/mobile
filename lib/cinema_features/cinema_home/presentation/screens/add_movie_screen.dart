@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:cinema_app/shared/widgets/app_button.dart';
+import 'dart:io';
+import 'package:http/http.dart' as http;
 
 class AddMovieScreen extends StatefulWidget {
   const AddMovieScreen({super.key});
@@ -15,8 +18,11 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
   final TextEditingController _genreController = TextEditingController();
   final TextEditingController _lengthController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final TextEditingController _imageUrlController = TextEditingController();
   final TextEditingController _trailerUrlController = TextEditingController();
+
+  // Image handling
+  File? _imageFile;
+  final ImagePicker _picker = ImagePicker();
 
   // Scheduling variables
   ShowScheduleType _scheduleType = ShowScheduleType.oneTime;
@@ -40,9 +46,24 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
     _genreController.dispose();
     _lengthController.dispose();
     _descriptionController.dispose();
-    _imageUrlController.dispose();
     _trailerUrlController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = File(pickedFile.path);
+      });
+    }
+  }
+
+  bool _isValidYouTubeUrl(String url) {
+    final youtubeRegex = RegExp(
+      r'^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$',
+    );
+    return youtubeRegex.hasMatch(url);
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -75,7 +96,13 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
       lastDate: DateTime(DateTime.now().year + 1),
     );
     if (picked != null && picked != _recurringStartDate) {
-      setState(() => _recurringStartDate = picked);
+      setState(() {
+        _recurringStartDate = picked;
+        // Reset end date if it's now before start date
+        if (_recurringEndDate != null && _recurringEndDate!.isBefore(picked)) {
+          _recurringEndDate = null;
+        }
+      });
     }
   }
 
@@ -100,6 +127,14 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
   Future<void> _submitMovie() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Validate image
+    if (_imageFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a movie poster image')),
+      );
+      return;
+    }
+
     // Validate scheduling
     if (_scheduleType == ShowScheduleType.oneTime) {
       if (_selectedDate == null || _selectedTime == null) {
@@ -109,10 +144,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
         return;
       }
     } else {
-      if (_recurringStartDate == null || 
-          _recurringEndDate == null || 
-          _selectedTime == null || 
-          !_recurringDays.containsValue(true)) {
+      if (_recurringStartDate == null || _selectedTime == null || !_recurringDays.containsValue(true)) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select all required fields for recurring show')),
         );
@@ -120,22 +152,33 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
       }
     }
 
+    // Calculate default end date if not provided (6 months from start)
+    final effectiveEndDate = _recurringEndDate ?? 
+        (_recurringStartDate?.add(const Duration(days: 180)));
+
     // Create movie data
     final movieData = {
       'title': _titleController.text,
       'genre': _genreController.text,
       'length': _lengthController.text,
       'description': _descriptionController.text,
-      'imageUrl': _imageUrlController.text,
       'trailerUrl': _trailerUrlController.text,
       'scheduleType': _scheduleType.toString(),
-      'showTimes': _getShowTimes(),
+      'showTimes': _getShowTimes(effectiveEndDate),
       // Add other fields as needed
     };
 
-    // TODO: Upload to Firebase
+    // TODO: Upload image to Firebase Storage first, then add movie data to Firestore
     try {
-      // await FirebaseFirestore.instance.collection('movies').add(movieData);
+      // 1. Upload image to Firebase Storage
+      // final imageUrl = await _uploadImageToFirebase(_imageFile!);
+      
+      // 2. Add movie data with image URL to Firestore
+      // await FirebaseFirestore.instance.collection('movies').add({
+      //   ...movieData,
+      //   'imageUrl': imageUrl,
+      // });
+      
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Movie added successfully!')),
       );
@@ -147,7 +190,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
     }
   }
 
-  List<Map<String, dynamic>> _getShowTimes() {
+  List<Map<String, dynamic>> _getShowTimes(DateTime? effectiveEndDate) {
     if (_scheduleType == ShowScheduleType.oneTime) {
       return [
         {
@@ -165,7 +208,9 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
           .toList();
 
       DateTime currentDate = _recurringStartDate!;
-      while (currentDate.isBefore(_recurringEndDate!) ){
+      final endDate = effectiveEndDate ?? currentDate.add(const Duration(days: 180));
+      
+      while (currentDate.isBefore(endDate)) {
         for (var day in days) {
           if (currentDate.weekday == day.index + 1) {
             showTimes.add({
@@ -179,7 +224,6 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
         currentDate = currentDate.add(const Duration(days: 1));
       }
       return showTimes;
-      
     }
   }
 
@@ -292,26 +336,34 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Image URL
-              TextFormField(
-                controller: _imageUrlController,
-                style: const TextStyle(color: Colors.white),
-                decoration: const InputDecoration(
-                  labelText: 'Poster Image URL',
-                  labelStyle: TextStyle(color: Colors.grey),
-                  enabledBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.grey),
+              // Movie Poster Image
+              const Text(
+                'Movie Poster:',
+                style: TextStyle(color: Colors.white),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _pickImage,
+                child: Container(
+                  height: 150,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  focusedBorder: UnderlineInputBorder(
-                    borderSide: BorderSide(color: Colors.green),
-                  ),
+                  child: _imageFile == null
+                      ? const Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_photo_alternate, color: Colors.grey, size: 40),
+                              SizedBox(height: 8),
+                              Text('Tap to add poster image', style: TextStyle(color: Colors.grey)),
+                            ],
+                          ),
+                        )
+                      : Image.file(_imageFile!, fit: BoxFit.cover),
                 ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Please enter an image URL';
-                  }
-                  return null;
-                },
               ),
               const SizedBox(height: 20),
 
@@ -320,7 +372,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                 controller: _trailerUrlController,
                 style: const TextStyle(color: Colors.white),
                 decoration: const InputDecoration(
-                  labelText: 'Trailer Video URL',
+                  labelText: 'YouTube Trailer URL',
                   labelStyle: TextStyle(color: Colors.grey),
                   enabledBorder: UnderlineInputBorder(
                     borderSide: BorderSide(color: Colors.grey),
@@ -332,6 +384,9 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                 validator: (value) {
                   if (value == null || value.isEmpty) {
                     return 'Please enter a trailer URL';
+                  }
+                  if (!_isValidYouTubeUrl(value)) {
+                    return 'Please enter a valid YouTube URL';
                   }
                   return null;
                 },
@@ -447,15 +502,23 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                       child: InkWell(
                         onTap: () => _selectRecurringEndDate(context),
                         child: InputDecorator(
-                          decoration: const InputDecoration(
-                            labelText: 'End Date',
-                            labelStyle: TextStyle(color: Colors.grey),
+                          decoration: InputDecoration(
+                            labelText: 'End Date (optional)',
+                            labelStyle: const TextStyle(color: Colors.grey),
+                            suffixIcon: _recurringEndDate == null
+                                ? const Tooltip(
+                                    message: 'If not set, will default to 6 months from start date',
+                                    child: Icon(Icons.info_outline, color: Colors.grey, size: 18),
+                                  )
+                                : null,
                           ),
                           child: Text(
                             _recurringEndDate == null
-                                ? 'Select End Date'
+                                ? 'Not set (default: 6 months)'
                                 : DateFormat('MMM dd, yyyy').format(_recurringEndDate!),
-                            style: const TextStyle(color: Colors.white),
+                            style: TextStyle(
+                              color: _recurringEndDate == null ? Colors.grey : Colors.white,
+                            ),
                           ),
                         ),
                       ),
