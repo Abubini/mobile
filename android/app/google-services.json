@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "158332835040",
+    "project_id": "cinema-app-6e991",
+    "storage_bucket": "cinema-app-6e991.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:158332835040:android:12d7ea09d1bc26548f6c85",
+        "android_client_info": {
+          "package_name": "com.example.BookMyScreen"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDWIO5pvo7bqGzV-__TWO8_PVvyQKFNJoY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
