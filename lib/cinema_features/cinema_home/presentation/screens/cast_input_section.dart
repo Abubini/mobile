@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-import 'dart:io';
 
 class CastInputSection extends StatefulWidget {
-  final List<Cast> initialCasts;
-  final Function(List<Cast>) onCastsAdded;
-
+  final List<Map<String, String>> initialCasts;
+  
   const CastInputSection({
     super.key,
     required this.initialCasts,
-    required this.onCastsAdded,
   });
 
   @override
@@ -17,36 +13,28 @@ class CastInputSection extends StatefulWidget {
 }
 
 class _CastInputSectionState extends State<CastInputSection> {
-  late List<Cast> _casts;
+  final List<Map<String, String>> _casts = [];
   final TextEditingController _nameController = TextEditingController();
-  File? _imageFile;
-  final ImagePicker _picker = ImagePicker();
+  final TextEditingController _imageUrlController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _casts = List.from(widget.initialCasts);
-  }
-
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _imageFile = File(pickedFile.path);
-      });
-    }
+    _casts.addAll(widget.initialCasts);
   }
 
   void _addCast() {
-    if (_nameController.text.isEmpty || _imageFile == null || _casts.length >= 5) return;
+    if (_nameController.text.isEmpty || 
+        _imageUrlController.text.isEmpty || 
+        _casts.length >= 5) return;
 
     setState(() {
-      _casts.add(Cast(
-        name: _nameController.text,
-        imageFile: _imageFile!,
-      ));
+      _casts.add({
+        'name': _nameController.text,
+        'imageUrl': _imageUrlController.text,
+      });
       _nameController.clear();
-      _imageFile = null;
+      _imageUrlController.clear();
     });
   }
 
@@ -57,8 +45,7 @@ class _CastInputSectionState extends State<CastInputSection> {
   }
 
   void _submitCasts() {
-    widget.onCastsAdded(_casts);
-    Navigator.pop(context);
+    Navigator.pop(context, _casts);
   }
 
   @override
@@ -107,28 +94,37 @@ class _CastInputSectionState extends State<CastInputSection> {
                 ),
               ),
               const SizedBox(height: 16),
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
+              TextFormField(
+                controller: _imageUrlController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Cast Image URL',
+                  labelStyle: TextStyle(color: Colors.grey),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.grey),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.green),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (_imageUrlController.text.isNotEmpty)
+                Container(
                   height: 100,
                   width: 100,
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.grey),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: _imageFile == null
-                      ? const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate, color: Colors.grey),
-                              Text('Add Photo', style: TextStyle(color: Colors.grey)),
-                            ],
-                          ),
-                        )
-                      : Image.file(_imageFile!, fit: BoxFit.cover),
+                  child: Image.network(
+                    _imageUrlController.text,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Icon(Icons.broken_image, color: Colors.grey),
+                    ),
+                  ),
                 ),
-              ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _addCast,
@@ -152,18 +148,20 @@ class _CastInputSectionState extends State<CastInputSection> {
                 )
               else
                 Column(
-                  children: _casts.map((cast) {
+                  children: _casts.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final cast = entry.value;
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundImage: FileImage(cast.imageFile),
+                        backgroundImage: NetworkImage(cast['imageUrl']!),
                       ),
                       title: Text(
-                        cast.name,
+                        cast['name']!,
                         style: const TextStyle(color: Colors.white),
                       ),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _removeCast(_casts.indexOf(cast)),
+                        onPressed: () => _removeCast(index),
                       ),
                     );
                   }).toList(),
@@ -184,14 +182,4 @@ class _CastInputSectionState extends State<CastInputSection> {
       ),
     );
   }
-}
-
-class Cast {
-  final String name;
-  final File imageFile;
-
-  Cast({
-    required this.name,
-    required this.imageFile,
-  });
 }

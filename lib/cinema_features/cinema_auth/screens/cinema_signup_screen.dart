@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -6,19 +7,25 @@ import '../../../core/constants/app_styles.dart';
 import '../providers/cinema_auth_provider.dart';
 import '../../../shared/widgets/app_button.dart';
 
-class CinemaSignupScreen extends StatelessWidget {
+class CinemaSignupScreen extends StatefulWidget {
   const CinemaSignupScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<CinemaAuthProvider>(context);
-    final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController();
-    final phoneController = TextEditingController();
-    final passwordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
-    final locationController = TextEditingController();
+  State<CinemaSignupScreen> createState() => _CinemaSignupScreenState();
+}
 
+class _CinemaSignupScreenState extends State<CinemaSignupScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _locationController = TextEditingController();
+
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.darkBg,
       body: Center(
@@ -38,7 +45,7 @@ class CinemaSignupScreen extends StatelessWidget {
               ],
             ),
             child: Form(
-              key: formKey,
+              key: _formKey,
               child: Column(
                 children: [
                   Text(
@@ -47,7 +54,7 @@ class CinemaSignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   TextFormField(
-                    controller: nameController,
+                    controller: _nameController,
                     decoration: InputDecoration(
                       labelText: 'Cinema Name',
                       labelStyle: AppStyles.mutedText,
@@ -68,7 +75,7 @@ class CinemaSignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: phoneController,
+                    controller: _phoneController,
                     decoration: InputDecoration(
                       labelText: 'Phone Number',
                       labelStyle: AppStyles.mutedText,
@@ -93,7 +100,7 @@ class CinemaSignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: locationController,
+                    controller: _locationController,
                     decoration: InputDecoration(
                       labelText: 'Location',
                       labelStyle: AppStyles.mutedText,
@@ -114,7 +121,7 @@ class CinemaSignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: passwordController,
+                    controller: _passwordController,
                     decoration: InputDecoration(
                       labelText: 'Password',
                       labelStyle: AppStyles.mutedText,
@@ -139,7 +146,7 @@ class CinemaSignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: confirmPasswordController,
+                    controller: _confirmPasswordController,
                     decoration: InputDecoration(
                       labelText: 'Confirm Password',
                       labelStyle: AppStyles.mutedText,
@@ -156,7 +163,7 @@ class CinemaSignupScreen extends StatelessWidget {
                       if (value == null || value.isEmpty) {
                         return 'Please confirm your password';
                       }
-                      if (value != passwordController.text) {
+                      if (value != _passwordController.text) {
                         return 'Passwords do not match';
                       }
                       return null;
@@ -166,19 +173,48 @@ class CinemaSignupScreen extends StatelessWidget {
                   AppButton(
                     text: 'SIGN UP',
                     onPressed: () async {
-                      if (formKey.currentState!.validate()) {
-                        await authProvider.signup(
-                          nameController.text,
-                          phoneController.text,
-                          passwordController.text,
-                          locationController.text,
-                        );
-                        if (authProvider.isAuthenticated && context.mounted) {
-                          context.go('/cinema/dashboard');
+                      if (_formKey.currentState!.validate()) {
+                        try {
+                          setState(() => _isLoading = true);
+                          
+                          final authProvider = Provider.of<CinemaAuthProvider>(context, listen: false);
+                          await authProvider.signup(
+                            _nameController.text.trim(),
+                            _phoneController.text.trim(),
+                            _passwordController.text.trim(),
+                            _locationController.text.trim(),
+                          );
+                          
+                          if (context.mounted) {
+                            context.go('/cinema/login');
+                          }
+                        } on FirebaseAuthException catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.message ?? 'Authentication failed')),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(e.toString())),
+                            );
+                          }
+                        } finally {
+                          if (mounted) {
+                            setState(() => _isLoading = false);
+                          }
                         }
                       }
+                      
                     },
+                    isLoading: _isLoading,
                   ),
+                  if (_isLoading) const SizedBox(height: 16),
+                  if (_isLoading)
+                    const CircularProgressIndicator(
+                      color: AppColors.primary,
+                    ),
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () => context.go('/cinema/login'),
@@ -194,5 +230,58 @@ class CinemaSignupScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _handleSignup() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final authProvider = Provider.of<CinemaAuthProvider>(context, listen: false);
+      await authProvider.signup(
+        _nameController.text.trim(),
+        _phoneController.text.trim(),
+        _passwordController.text.trim(),
+        _locationController.text.trim(),
+      );
+      
+      if (context.mounted) {
+        // Navigate to dashboard after successful signup
+        context.go('/cinema/dashboard');
+      }
+    } on FirebaseException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message ?? 'Firebase error occurred'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString()),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    _locationController.dispose();
+    super.dispose();
   }
 }

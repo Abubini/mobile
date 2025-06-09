@@ -1,29 +1,38 @@
-import 'package:cinema_app/features/home/data/models/movie_model.dart';
-import 'package:cinema_app/features/home/data/repositories/movie_repo.dart';
 import 'package:flutter/foundation.dart';
-
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class CinemaHomeProvider with ChangeNotifier {
-  List<Movie> _movies = [];
+  List<Map<String, dynamic>> _movies = [];
   bool _isLoading = false;
 
-  List<Movie> get movies => _movies;
+  List<Map<String, dynamic>> get movies => _movies;
   bool get isLoading => _isLoading;
 
-  final MovieRepository _movieRepository = MovieRepository();
-
-  Future<void> loadMovies() async {
-    _isLoading = true;
-    notifyListeners();
-
+  Future<void> loadMovies(String cinemaId) async {
     try {
-      _movies = await _movieRepository.getMovies();
-    } catch (e) {
-      // Handle error
-      debugPrint('Error loading movies: $e');
-    } finally {
+      _isLoading = true;
+      notifyListeners();
+
+      final snapshot = await FirebaseFirestore.instance
+          .collection('cinemas')
+          .doc(cinemaId)
+          .collection('movies')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      _movies = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+
       _isLoading = false;
       notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      rethrow;
     }
   }
 }

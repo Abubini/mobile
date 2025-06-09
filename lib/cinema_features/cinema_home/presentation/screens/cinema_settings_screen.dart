@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cinema_app/shared/widgets/app_button.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CinemaSettingsScreen extends StatefulWidget {
   const CinemaSettingsScreen({super.key});
@@ -13,12 +18,132 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
   bool _isChangingPassword = false;
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
+  bool _isLoading = false;
+  String _cinemaName = 'CINEMA_ADMIN'; // Default value
+  late StreamSubscription<DocumentSnapshot> _cinemaSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCinemaData();
+  }
 
   @override
   void dispose() {
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
+    _cinemaSubscription.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadCinemaData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _cinemaSubscription = FirebaseFirestore.instance
+          .collection('cinemas')
+          .doc(user.uid)
+          .snapshots()
+          .listen((snapshot) {
+        if (snapshot.exists && mounted) {
+          setState(() {
+            _cinemaName = snapshot.data()?['name'] ?? 'CINEMA_ADMIN';
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _changePassword() async {
+    if (_oldPasswordController.text.isEmpty || 
+        _newPasswordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    if (_newPasswordController.text.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final cred = EmailAuthProvider.credential(
+        email: user?.email ?? '',
+        password: _oldPasswordController.text,
+      );
+
+      // Reauthenticate user
+      await user?.reauthenticateWithCredential(cred);
+      
+      // Update password
+      await user?.updatePassword(_newPasswordController.text);
+
+      // Clear fields and hide form
+      setState(() {
+        _isChangingPassword = false;
+        _oldPasswordController.clear();
+        _newPasswordController.clear();
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password changed successfully')),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Password change failed';
+      if (e.code == 'wrong-password') {
+        errorMessage = 'Incorrect old password';
+      } else if (e.code == 'weak-password') {
+        errorMessage = 'New password is too weak';
+      }
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An error occurred')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (context.mounted) {
+        context.pop();
+        context.go('/cinema/login');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logged out successfully')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logout failed')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -47,10 +172,10 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Center(
+                  Center(
                     child: Text(
-                      '@CINEMA_ADMIN',
-                      style: TextStyle(
+                      _cinemaName,
+                      style: const TextStyle(
                         color: Colors.green,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -108,30 +233,20 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
                     const SizedBox(height: 10),
                     AppButton(
                       text: 'Change',
-                      onPressed: () {
-                        setState(() {
-                          _isChangingPassword = false;
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Password changed successfully')),
-                        );
-                      },
+                      onPressed: _changePassword,
+                      isLoading: _isLoading,
                     ),
                     const SizedBox(height: 10),
                   ],
                   
+                  // Logout Button (hidden when changing password)
                   if (!_isChangingPassword) ...[
                     const SizedBox(height: 20),
                     AppButton(
                       text: 'Logout',
                       backgroundColor: Colors.red,
-                      onPressed: () {
-                        Navigator.pop(context);
-                        context.go('/cinema/login');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Logged out successfully')),
-                        );
-                      },
+                      onPressed: _logout,
+                      isLoading: _isLoading,
                     ),
                   ],
                 ],

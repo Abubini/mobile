@@ -3,18 +3,25 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 
-class SignupScreen extends StatelessWidget {
+class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final formKey = GlobalKey<FormState>();
-    final usernameController = TextEditingController();
-    final phoneController = TextEditingController();
-    final passwordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
+  State<SignupScreen> createState() => _SignupScreenState();
+}
 
+class _SignupScreenState extends State<SignupScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: Center(
@@ -34,7 +41,7 @@ class SignupScreen extends StatelessWidget {
               ],
             ),
             child: Form(
-              key: formKey,
+              key: _formKey,
               child: Column(
                 children: [
                   const Text(
@@ -48,7 +55,7 @@ class SignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 24),
                   TextFormField(
-                    controller: usernameController,
+                    controller: _usernameController,
                     decoration: const InputDecoration(
                       labelText: 'Username',
                       labelStyle: TextStyle(color: Colors.grey),
@@ -72,7 +79,7 @@ class SignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: phoneController,
+                    controller: _phoneController,
                     decoration: const InputDecoration(
                       labelText: 'Phone Number',
                       labelStyle: TextStyle(color: Colors.grey),
@@ -90,14 +97,14 @@ class SignupScreen extends StatelessWidget {
                         return 'Phone number is required';
                       }
                       if (!RegExp(r'^[0-9]{7,15}$').hasMatch(value)) {
-                        return 'Enter a valid phone number';
+                        return 'Enter a valid phone number (7-15 digits)';
                       }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: passwordController,
+                    controller: _passwordController,
                     decoration: const InputDecoration(
                       labelText: 'Password',
                       labelStyle: TextStyle(color: Colors.grey),
@@ -122,7 +129,7 @@ class SignupScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
-                    controller: confirmPasswordController,
+                    controller: _confirmPasswordController,
                     decoration: const InputDecoration(
                       labelText: 'Confirm Password',
                       labelStyle: TextStyle(color: Colors.grey),
@@ -139,31 +146,30 @@ class SignupScreen extends StatelessWidget {
                       if (value == null || value.isEmpty) {
                         return 'Please confirm your password';
                       }
-                      if (value != passwordController.text) {
+                      if (value != _passwordController.text) {
                         return 'Passwords do not match';
                       }
                       return null;
                     },
                   ),
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 16),
+                    Text(
+                      _errorMessage!,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                  ],
                   const SizedBox(height: 24),
                   ElevatedButton(
-                    onPressed: () async {
-                      if (formKey.currentState!.validate()) {
-                        await authProvider.signup(
-                          usernameController.text,
-                          phoneController.text,
-                          passwordController.text,
-                        );
-                        if (authProvider.isAuthenticated && context.mounted) {
-                          context.go('/login');
-                        }
-                      }
-                    },
+                    onPressed: _isLoading ? null : _handleSignup,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.green,
                       minimumSize: const Size(double.infinity, 50),
+                      disabledBackgroundColor: Colors.green.withOpacity(0.5),
                     ),
-                    child: const Text('SIGN UP'),
+                    child: _isLoading
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text('SIGN UP'),
                   ),
                   const SizedBox(height: 16),
                   TextButton(
@@ -180,5 +186,44 @@ class SignupScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _handleSignup() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.signup(
+        _usernameController.text.trim(),
+        _phoneController.text.trim(),
+        _passwordController.text.trim(),
+      );
+      
+      if (context.mounted) {
+        context.go('/login');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
   }
 }

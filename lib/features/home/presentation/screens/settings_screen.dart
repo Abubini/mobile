@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:cinema_app/shared/widgets/app_button.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,12 +18,131 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isChangingPassword = false;
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
+  bool _isLoading = false;
+  String _username = '@USERNAME'; // Default value
+  late StreamSubscription<DocumentSnapshot> _userSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
 
   @override
   void dispose() {
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
+    _userSubscription.cancel();
     super.dispose();
+  }
+
+  Future<void> _loadUserData() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _userSubscription = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .snapshots()
+          .listen((snapshot) {
+        if (snapshot.exists) {
+          setState(() {
+            _username = '@${snapshot.data()?['username'] ?? 'USERNAME'}';
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _changePassword() async {
+    if (_oldPasswordController.text.isEmpty || 
+        _newPasswordController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    if (_newPasswordController.text.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 6 characters')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      final cred = EmailAuthProvider.credential(
+        email: user?.email ?? '',
+        password: _oldPasswordController.text,
+      );
+
+      // Reauthenticate user
+      await user?.reauthenticateWithCredential(cred);
+      
+      // Update password
+      await user?.updatePassword(_newPasswordController.text);
+
+      // Clear fields and hide form
+      setState(() {
+        _isChangingPassword = false;
+        _oldPasswordController.clear();
+        _newPasswordController.clear();
+      });
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Password changed successfully')),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      String errorMessage = 'Password change failed';
+      if (e.code == 'wrong-password') {
+        errorMessage = 'Incorrect old password';
+      } else if (e.code == 'weak-password') {
+        errorMessage = 'New password is too weak';
+      }
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An error occurred')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _logout() async {
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (context.mounted) {
+        context.go('/login');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logged out successfully')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Logout failed')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -47,29 +171,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Center(
+                  Center(
                     child: Text(
-                      '@USERNAME',
-                      style: TextStyle(
+                      _username,
+                      style: const TextStyle(
                         color: Colors.green,
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  
-                  // Username
-                  // const Center(
-                  //   child: Text(
-                  //     'Username',
-                  //     style: TextStyle(
-                  //       color: Colors.white,
-                  //       fontSize: 18,
-                  //       fontWeight: FontWeight.bold,
-                  //     ),
-                  //   ),
-                  // ),
                   const SizedBox(height: 20),
                   
                   // Change Password Section
@@ -121,15 +232,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 10),
                     AppButton(
                       text: 'Change',
-                      onPressed: () {
-                        // Implement password change logic
-                        setState(() {
-                          _isChangingPassword = false;
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Password changed successfully')),
-                        );
-                      },
+                      onPressed: _changePassword,
+                      isLoading: _isLoading,
                     ),
                     const SizedBox(height: 10),
                   ],
@@ -140,14 +244,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     AppButton(
                       text: 'Logout',
                       backgroundColor: Colors.red,
-                      // foregroundColor: Colors.red,
-                      onPressed: () {
-                        // Implement logout logic
-                        context.go('/login');
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Logged out successfully')),
-                        );
-                      },
+                      onPressed: _logout,
+                      isLoading: _isLoading,
                     ),
                   ],
                 ],

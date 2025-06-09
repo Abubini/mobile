@@ -1,10 +1,10 @@
-import 'package:cinema_app/cinema_features/cinema_home/presentation/screens/cast_input_section.dart';
+import 'package:cinema_app/cinema_features/cinema_home/presentation/providers/movie_service.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:cinema_app/shared/widgets/app_button.dart';
-// import 'package:cinema_app/cinema_features/cinema_home/presentation/widgets/cast_input_section.dart';
-import 'dart:io';
+import 'package:cinema_app/cinema_features/cinema_home/presentation/screens/cast_input_section.dart';
 
 class AddMovieScreen extends StatefulWidget {
   const AddMovieScreen({super.key});
@@ -21,10 +21,9 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _trailerUrlController = TextEditingController();
   final TextEditingController _costController = TextEditingController();
+  final TextEditingController _posterUrlController = TextEditingController();
 
-  // Image handling
-  File? _imageFile;
-  final ImagePicker _picker = ImagePicker();
+  bool _isLoading = false;
   List<Cast> _casts = [];
 
   // Scheduling variables
@@ -51,6 +50,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
     _descriptionController.dispose();
     _trailerUrlController.dispose();
     _costController.dispose();
+    _posterUrlController.dispose();
     super.dispose();
   }
 
@@ -63,7 +63,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
       _descriptionController.clear();
       _trailerUrlController.clear();
       _costController.clear();
-      _imageFile = null;
+      _posterUrlController.clear();
       _casts = [];
       _scheduleType = ShowScheduleType.oneTime;
       _selectedDate = null;
@@ -82,20 +82,19 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
     });
   }
 
-  Future<void> _pickImage() async {
-    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile != null) {
-      setState(() {
-        _imageFile = File(pickedFile.path);
-      });
-    }
-  }
-
   bool _isValidYouTubeUrl(String url) {
     final youtubeRegex = RegExp(
       r'^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$',
     );
     return youtubeRegex.hasMatch(url);
+  }
+
+  bool _isValidImageUrl(String url) {
+    try {
+      return Uri.parse(url).isAbsolute;
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -156,19 +155,18 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
   }
 
   Future<void> _showCastInputDialog() async {
-    final List<Cast>? updatedCasts = await showDialog<List<Cast>>(
+    final List<Map<String, String>>? updatedCasts = await showDialog<List<Map<String, String>>>(
       context: context,
       builder: (context) {
         return CastInputSection(
-          initialCasts: _casts,
-          onCastsAdded: (casts) => casts,
+          initialCasts: _casts.map((cast) => {'name': cast.name, 'imageUrl': cast.imageUrl}).toList(),
         );
       },
     );
 
     if (updatedCasts != null) {
       setState(() {
-        _casts = updatedCasts;
+        _casts = updatedCasts.map((cast) => Cast(name: cast['name']!, imageUrl: cast['imageUrl']!)).toList();
       });
     }
   }
@@ -176,9 +174,16 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
   Future<void> _submitMovie() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_imageFile == null) {
+    if (_posterUrlController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a movie poster image')),
+        const SnackBar(content: Text('Please enter a poster image URL')),
+      );
+      return;
+    }
+
+    if (!_isValidImageUrl(_posterUrlController.text)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid poster image URL')),
       );
       return;
     }
@@ -206,28 +211,62 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
       }
     }
 
-    // Default to 3 months if end date not provided
-    final effectiveEndDate = _recurringEndDate ?? 
-        (_recurringStartDate?.add(const Duration(days: 90)));
+    setState(() => _isLoading = true);
 
-    // TODO: Implement Firebase upload
-    // 1. Upload movie poster
-    // 2. Upload cast images
-    // 3. Add movie data with references to cast images
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Movie added successfully!')),
-    );
-    _clearForm();
+      final effectiveEndDate = _recurringEndDate ?? 
+          (_recurringStartDate?.add(const Duration(days: 90)));
+      
+      final showTimes = _getShowTimes(effectiveEndDate);
+
+      await MovieService().addMovie(
+        cinemaId: user.uid,
+        title: _titleController.text,
+        genre: _genreController.text,
+        length: _lengthController.text,
+        description: _descriptionController.text,
+        cost: double.parse(_costController.text),
+        trailerUrl: _trailerUrlController.text,
+        posterUrl: _posterUrlController.text,
+        casts: _casts.map((cast) => {'name': cast.name, 'imageUrl': cast.imageUrl}).toList(),
+        showTimes: showTimes,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Movie added successfully!')),
+      );
+      _clearForm();
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error adding movie: ${e.toString()}')),
+      );
+    } finally {
+      setState(() => _isLoading = false);
+    }
   }
 
   List<Map<String, dynamic>> _getShowTimes(DateTime? effectiveEndDate) {
     if (_scheduleType == ShowScheduleType.oneTime) {
+      final showDateTime = DateTime(
+        _selectedDate!.year,
+        _selectedDate!.month,
+        _selectedDate!.day,
+        _selectedTime!.hour,
+        _selectedTime!.minute,
+      );
+      
       return [
         {
           'date': DateFormat('yyyy-MM-dd').format(_selectedDate!),
           'time': _selectedTime!.format(context),
+          'timestamp': Timestamp.fromDate(showDateTime),
           'isRecurring': false,
+          'dayOfWeek': null,
         }
       ];
     } else {
@@ -243,11 +282,20 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
       while (currentDate.isBefore(endDate)) {
         for (var day in days) {
           if (currentDate.weekday == day.index + 1) {
+            final showDateTime = DateTime(
+              currentDate.year,
+              currentDate.month,
+              currentDate.day,
+              _selectedTime!.hour,
+              _selectedTime!.minute,
+            );
+            
             showTimes.add({
               'date': DateFormat('yyyy-MM-dd').format(currentDate),
               'time': _selectedTime!.format(context),
+              'timestamp': Timestamp.fromDate(showDateTime),
               'isRecurring': true,
-              'dayOfWeek': day.toString(),
+              'dayOfWeek': day.toString().split('.').last,
             });
           }
         }
@@ -395,35 +443,47 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Movie Poster Image
-              const Text(
-                'Movie Poster:',
-                style: TextStyle(color: Colors.white),
+              // Movie Poster URL
+              TextFormField(
+                controller: _posterUrlController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  labelText: 'Poster Image URL',
+                  labelStyle: TextStyle(color: Colors.grey),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.grey),
+                  ),
+                  focusedBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.green),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please enter a poster image URL';
+                  }
+                  if (!_isValidImageUrl(value)) {
+                    return 'Please enter a valid image URL';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
+              if (_posterUrlController.text.isNotEmpty)
+                Container(
                   height: 150,
                   width: double.infinity,
                   decoration: BoxDecoration(
                     border: Border.all(color: Colors.grey),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: _imageFile == null
-                      ? const Center(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate, color: Colors.grey, size: 40),
-                              SizedBox(height: 8),
-                              Text('Tap to add poster image', style: TextStyle(color: Colors.grey)),
-                            ],
-                          ),
-                        )
-                      : Image.file(_imageFile!, fit: BoxFit.cover),
+                  child: Image.network(
+                    _posterUrlController.text,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => const Center(
+                      child: Icon(Icons.broken_image, color: Colors.grey, size: 40),
+                    ),
+                  ),
                 ),
-              ),
               const SizedBox(height: 20),
 
               // Cast Section
@@ -471,7 +531,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                         padding: const EdgeInsets.only(right: 8),
                         child: CircleAvatar(
                           radius: 30,
-                          backgroundImage: FileImage(_casts[index].imageFile),
+                          backgroundImage: NetworkImage(_casts[index].imageUrl),
                         ),
                       );
                     },
@@ -688,6 +748,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                       text: 'Clear',
                       backgroundColor: Colors.red,
                       onPressed: _clearForm,
+                      isLoading: _isLoading,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -695,6 +756,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
                     child: AppButton(
                       text: 'Post Movie',
                       onPressed: _submitMovie,
+                      isLoading: _isLoading,
                     ),
                   ),
                 ],
@@ -718,4 +780,14 @@ enum DayOfWeek {
   friday,
   saturday,
   sunday,
+}
+
+class Cast {
+  final String name;
+  final String imageUrl;
+
+  Cast({
+    required this.name,
+    required this.imageUrl,
+  });
 }

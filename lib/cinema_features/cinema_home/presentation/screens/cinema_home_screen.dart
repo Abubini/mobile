@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../providers/cinema_home_provider.dart';
 import '../widgets/cinema_movie_card.dart';
 import 'cinema_settings_screen.dart';
@@ -12,6 +13,7 @@ class CinemaHomeScreen extends StatefulWidget {
   State<CinemaHomeScreen> createState() => _CinemaHomeScreenState();
 }
 
+
 class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
   bool _isSearchExpanded = false;
   bool _isFilterExpanded = false;
@@ -21,19 +23,22 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
 
   final List<String> _filterOptions = [
     'Action',
-    'Space',
-    'Fantasy',
-    'Romantic',
-    'Dark',
-    'Stage',
+    'Comedy',
+    'Drama',
+    'Horror',
+    'Sci-Fi',
+    'Romance',
   ];
 
   @override
   void initState() {
     super.initState();
-    // Load movies when screen initializes
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<CinemaHomeProvider>(context, listen: false).loadMovies();
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        Provider.of<CinemaHomeProvider>(context, listen: false)
+            .loadMovies(user.uid);
+      }
     });
   }
 
@@ -42,6 +47,7 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
     _searchController.dispose();
     super.dispose();
   }
+  
 
   @override
   Widget build(BuildContext context) {
@@ -84,7 +90,6 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
           children: [
             Column(
               children: [
-                // Search and Filter buttons
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
@@ -110,13 +115,9 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
                   ),
                 ),
 
-                // Search field
                 if (_isSearchExpanded) _buildSearchField(),
-
-                // Filter chips
                 if (_isFilterExpanded) _buildFilterChips(),
 
-                // Movies content or empty state
                 Expanded(
                   child: cinemaProvider.isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -155,7 +156,6 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
               ],
             ),
 
-            // Overlay to close filter when tapping outside
             if (_isFilterExpanded)
               GestureDetector(
                 onTap: () {
@@ -168,33 +168,26 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
               ),
           ],
         ),
-        
       ),
       floatingActionButton: Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        FloatingActionButton(
-          onPressed: () {
-            // Navigate to add movie screen or other functionality
-            context.push('/cinema/add-movie');
-          },
-          backgroundColor: Colors.green,
-          child: const Icon(Icons.add),
-          heroTag: 'addButton',
-        ),
-        const SizedBox(height: 16),
-        FloatingActionButton(
-          onPressed: () {
-            // Navigate to QR scanner screen
-            context.push('/cinema/scan');
-          },
-          backgroundColor: Colors.green,
-          child: const Icon(Icons.camera_alt),
-          heroTag: 'cameraButton',
-        ),
-        const SizedBox(height: 8),
-      ],
-    ),
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            onPressed: () => context.push('/cinema/add-movie'),
+            backgroundColor: Colors.green,
+            child: const Icon(Icons.add),
+            heroTag: 'addButton',
+          ),
+          const SizedBox(height: 16),
+          FloatingActionButton(
+            onPressed: () => context.push('/cinema/scan'),
+            backgroundColor: Colors.green,
+            child: const Icon(Icons.camera_alt),
+            heroTag: 'cameraButton',
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
     );
   }
 

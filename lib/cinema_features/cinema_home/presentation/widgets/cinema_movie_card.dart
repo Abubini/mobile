@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../features/home/data/models/movie_model.dart';
 
 class CinemaMovieCard extends StatelessWidget {
-  final Movie movie;
+  final Map<String, dynamic> movie;
   final VoidCallback onTap;
 
   const CinemaMovieCard({
@@ -36,7 +36,7 @@ class CinemaMovieCard extends StatelessWidget {
           children: [
             Expanded(
               child: Image.network(
-                movie.imageUrl,
+                movie['posterUrl'],
                 fit: BoxFit.cover,
               ),
             ),
@@ -50,7 +50,7 @@ class CinemaMovieCard extends StatelessWidget {
                 ),
               ),
               child: Text(
-                movie.title,
+                movie['title'],
                 style: const TextStyle(
                   color: Colors.white, // White text
                   fontWeight: FontWeight.bold,

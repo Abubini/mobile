@@ -13,9 +13,12 @@ import '../../../../shared/widgets/app_button.dart';
 class BookingScreen extends StatelessWidget {
   const BookingScreen({super.key});
 
+  
+
   @override
   Widget build(BuildContext context) {
     final bookingProvider = Provider.of<BookingProvider>(context);
+    bool _isLoading = false;
     return WillPopScope(
       onWillPop: () async {
         context.go('/home');
@@ -85,7 +88,7 @@ class BookingScreen extends StatelessWidget {
                 AppButton(
                   text: 'Reset',
                   backgroundColor: const Color(0xFF2d2d2d),
-                  onPressed: bookingProvider.resetSelection,
+                  onPressed: bookingProvider.resetSelection, isLoading: _isLoading,
                 ),
                 const SizedBox(width: 10),
                 AppButton(
@@ -110,7 +113,7 @@ class BookingScreen extends StatelessWidget {
                             );
                           }
                         }
-                      },
+                      }, isLoading: _isLoading,
                 ),
               ],
             ),

@@ -1,4 +1,6 @@
 import 'package:cinema_app/cinema_features/cinema_auth/providers/cinema_auth_provider.dart';
+import 'package:cinema_app/firebase_options.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/cinema_router.dart';
@@ -6,7 +8,13 @@ import 'core/cinema_router.dart';
 import 'core/constants/app_colors.dart';  // Make sure to import these
 import 'core/constants/app_styles.dart';
 
-void main() {  // <-- This main() function must exist
+void main() async {  // <-- This main() function must exist
+ WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform, // If using firebase_options
+    
+  );
+  debugPrint('Firebase initialized: ${Firebase.apps.isNotEmpty}');
   runApp(const CinemaApp());
 }
 

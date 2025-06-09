@@ -20,58 +20,35 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _showForgotPasswordSection = false;
   bool _codeSent = false;
   bool _isLoading = false;
+  String? _errorMessage;
 
-  Future<void> _handleForgotPassword() async {
-    if (!_forgotPasswordPhoneController.text.isNotEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    // Simulate sending code
-    await Future.delayed(const Duration(seconds: 1));
-
-    setState(() {
-      _codeSent = true;
-      _isLoading = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Code sent to ${_forgotPasswordPhoneController.text}')),
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF121212),
+      body: Center(
+        child: SingleChildScrollView(
+          child: Container(
+            width: 320,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1e1e1e),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.7),
+                  blurRadius: 15,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: _showForgotPasswordSection 
+                ? _buildForgotPasswordSection()
+                : _buildLoginSection(),
+          ),
+        ),
+      ),
     );
-  }
-
-  Future<void> _verifyCode() async {
-    if (_codeController.text.length != 6) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid 6-digit code')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    // Simulate code verification
-    await Future.delayed(const Duration(seconds: 1));
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('opt verification succesfull')),
-    );
-
-    if (context.mounted) {
-      context.go('/home');
-    }
   }
 
   Widget _buildLoginSection() {
@@ -138,6 +115,13 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.red),
+            ),
+          ],
           const SizedBox(height: 8),
           Align(
             alignment: Alignment.centerRight,
@@ -146,6 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 setState(() {
                   _showForgotPasswordSection = true;
                   _codeSent = false;
+                  _errorMessage = null;
                 });
               },
               child: const Text(
@@ -156,23 +141,15 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           const SizedBox(height: 16),
           ElevatedButton(
-            onPressed: () async {
-              if (_formKey.currentState!.validate()) {
-                final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                final success = await authProvider.login(
-                  _phoneController.text,
-                  _passwordController.text,
-                );
-                if (success && context.mounted) {
-                  context.go('/home');
-                }
-              }
-            },
+            onPressed: _isLoading ? null : _handleLogin,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green,
               minimumSize: const Size(double.infinity, 50),
+              disabledBackgroundColor: Colors.green.withOpacity(0.5),
             ),
-            child: const Text('LOGIN'),
+            child: _isLoading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text('LOGIN'),
           ),
           const SizedBox(height: 16),
           TextButton(
@@ -191,102 +168,180 @@ class _LoginScreenState extends State<LoginScreen> {
     return WillPopScope(
       onWillPop: () async {
         setState(() {
-                  _showForgotPasswordSection = false;
-                  _codeSent = false;
-                  _forgotPasswordPhoneController.clear();
-                  _codeController.clear();
-                });
-        return false; // Prevent default back behavior
+          _showForgotPasswordSection = false;
+          _codeSent = false;
+          _errorMessage = null;
+        });
+        return false;
       },
-    child: Column(
-      children: [
-        Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back, color: Colors.white),
-              onPressed: () {
-                setState(() {
-                  _showForgotPasswordSection = false;
-                  _codeSent = false;
-                  _forgotPasswordPhoneController.clear();
-                  _codeController.clear();
-                });
-              },
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _codeSent ? 'Enter Code' : 'Forgot Password',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {
+                  setState(() {
+                    _showForgotPasswordSection = false;
+                    _codeSent = false;
+                    _errorMessage = null;
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              Text(
+                _codeSent ? 'Reset Password' : 'Forgot Password',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          TextFormField(
+            controller: _codeSent ? _codeController : _forgotPasswordPhoneController,
+            decoration: InputDecoration(
+              labelText: _codeSent ? 'Verification Code' : 'Phone Number',
+              labelStyle: const TextStyle(color: Colors.grey),
+              border: const OutlineInputBorder(),
+              enabledBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Color(0xFF333333)),
+              ),
+              focusedBorder: const OutlineInputBorder(
+                borderSide: BorderSide(color: Colors.green),
               ),
             ),
+            keyboardType: TextInputType.phone,
+          ),
+          if (_errorMessage != null) ...[
+            const SizedBox(height: 16),
+            Text(
+              _errorMessage!,
+              style: const TextStyle(color: Colors.red),
+            ),
           ],
-        ),
-        const SizedBox(height: 24),
-        TextFormField(
-          controller: _codeSent ? _codeController : _forgotPasswordPhoneController,
-          decoration: InputDecoration(
-            labelText: _codeSent ? 'Enter 6-digit code' : 'Phone Number',
-            labelStyle: const TextStyle(color: Colors.grey),
-            border: const OutlineInputBorder(),
-            enabledBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: Color(0xFF333333)),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _isLoading
+                ? null
+                : _codeSent
+                    ? _verifyResetCode
+                    : _sendResetCode,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              minimumSize: const Size(double.infinity, 50),
+              disabledBackgroundColor: Colors.green.withOpacity(0.5),
             ),
-            focusedBorder: const OutlineInputBorder(
-              borderSide: BorderSide(color: Colors.green),
-            ),
+            child: _isLoading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : Text(_codeSent ? 'RESET PASSWORD' : 'SEND CODE'),
           ),
-          keyboardType: TextInputType.phone,
-        ),
-        const SizedBox(height: 24),
-        ElevatedButton(
-          onPressed: _isLoading
-              ? null
-              : _codeSent
-                  ? _verifyCode
-                  : _handleForgotPassword,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.green,
-            minimumSize: const Size(double.infinity, 50),
-          ),
-          child: _isLoading
-              ? const CircularProgressIndicator(color: Colors.white)
-              : Text(_codeSent ? 'Verify' : 'Send Code'),
-        ),
-      ],
-    ),
+        ],
+      ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      body: Center(
-        child: SingleChildScrollView(
-          child: Container(
-            width: 320,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1e1e1e),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.7),
-                  blurRadius: 15,
-                  spreadRadius: 5,
-                ),
-              ],
-            ),
-            child: _showForgotPasswordSection 
-                ? _buildForgotPasswordSection()
-                : _buildLoginSection(),
+  Future<void> _handleLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.login(
+        _phoneController.text.trim(),
+        _passwordController.text.trim(),
+      );
+      
+      if (context.mounted) {
+        context.go('/home');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString();
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _sendResetCode() async {
+    final phone = _forgotPasswordPhoneController.text.trim();
+    if (phone.isEmpty) {
+      setState(() => _errorMessage = 'Please enter your phone number');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.sendPasswordResetCode(phone);
+      
+      setState(() => _codeSent = true);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Password reset email sent to $phone@user.com'),
+            duration: const Duration(seconds: 3),
           ),
-        ),
-      ),
-    );
+        );
+      }
+    } catch (e) {
+      setState(() => _errorMessage = e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _verifyResetCode() async {
+    final code = _codeController.text.trim();
+    if (code.isEmpty) {
+      setState(() => _errorMessage = 'Please enter the verification code');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // In a real app, you would verify the code and then navigate to password reset
+      // For now, we'll just simulate success
+      await Future.delayed(const Duration(seconds: 1));
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password reset successful. Please check your email.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        setState(() {
+          _showForgotPasswordSection = false;
+          _codeSent = false;
+        });
+      }
+    } catch (e) {
+      setState(() => _errorMessage = e.toString());
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override

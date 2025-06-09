@@ -8,21 +8,25 @@ import '../../../../shared/widgets/app_button.dart';
 
 class TicketDetailScreen extends StatelessWidget {
   final Ticket ticket;
+  
 
   const TicketDetailScreen({
     super.key,
     required this.ticket,
   });
-
+  
   @override
   Widget build(BuildContext context) {
     final ticket = GoRouterState.of(context).extra as Ticket;
+    
+    
 
     return WillPopScope(
       onWillPop: () async {
         context.go('/tickets');
         return false; // Prevent default back behavior
       },
+      
 
     child: Scaffold(
       backgroundColor: Colors.black.withOpacity(0.8),
@@ -212,6 +216,7 @@ class TicketDetailScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) {
+        bool _isLoading = false;
         return AlertDialog(
           backgroundColor: const Color(0xFF1e1e1e),
           title: const Text(
@@ -232,7 +237,7 @@ class TicketDetailScreen extends StatelessWidget {
                 const SizedBox(height: 15),
                 AppButton(
                   text: 'Close',
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () => Navigator.pop(context), isLoading:_isLoading,
                 ),
               ],
             ),

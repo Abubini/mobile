@@ -1,12 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
-import '../../../../features/home/data/models/movie_model.dart';
-import '../../../../features/movie_detail/presentation/widgets/cast_item.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
+import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart';
 
 class CinemaMovieDetailScreen extends StatefulWidget {
-  final Movie movie;
+  final Map<String, dynamic> movie;
 
   const CinemaMovieDetailScreen({super.key, required this.movie});
 
@@ -15,91 +15,136 @@ class CinemaMovieDetailScreen extends StatefulWidget {
 }
 
 class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
-  late VideoPlayerController _videoPlayerController;
-  ChewieController? _chewieController;
+  late YoutubePlayerController _youtubeController;
   bool _showVideo = false;
-  bool _isVideoInitialized = false;
+  CalendarFormat _calendarFormat = CalendarFormat.month;
+  DateTime _focusedDay = DateTime.now();
+  DateTime? _selectedDay;
 
   @override
   void initState() {
     super.initState();
-    _initializeVideoPlayer();
+    _initializeYoutubePlayer();
+    _selectedDay = _getFirstShowDate();
   }
 
-  Future<void> _initializeVideoPlayer() async {
-    _videoPlayerController = VideoPlayerController.network(widget.movie.trailerUrl);
-    
-    try {
-      await _videoPlayerController.initialize();
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController,
+  void _initializeYoutubePlayer() {
+    final videoId = YoutubePlayer.convertUrlToId(widget.movie['trailerUrl'] ?? '') ?? '';
+    _youtubeController = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(
         autoPlay: false,
-        looping: false,
-        aspectRatio: _videoPlayerController.value.aspectRatio,
-        placeholder: Container(color: Colors.black),
-        errorBuilder: (context, errorMessage) {
-          return Center(
-            child: Text(
-              'Failed to load video',
-              style: TextStyle(color: Colors.white),
-            ),
-          );
-        },
-      );
-      setState(() {
-        _isVideoInitialized = true;
-      });
-    } catch (e) {
-      setState(() {
-        _isVideoInitialized = false;
-      });
-    }
+        mute: false,
+        disableDragSeek: false,
+        loop: false,
+        isLive: false,
+        forceHD: true,
+        enableCaption: true,
+      ),
+    );
+  }
+
+  DateTime? _getFirstShowDate() {
+    final showTimes = widget.movie['showTimes'] as List<dynamic>? ?? [];
+    if (showTimes.isEmpty) return null;
+    
+    showTimes.sort((a, b) => (a['timestamp'] as Timestamp).compareTo(b['timestamp'] as Timestamp));
+    return (showTimes.first['timestamp'] as Timestamp).toDate();
+  }
+
+  List<DateTime> _getShowDates() {
+    final showTimes = widget.movie['showTimes'] as List<dynamic>? ?? [];
+    return showTimes.map((st) => (st['timestamp'] as Timestamp).toDate()).toList();
   }
 
   void _toggleVideo() {
     setState(() {
       _showVideo = !_showVideo;
-      if (_showVideo && _chewieController != null) {
-        _chewieController!.play();
-      } else if (_chewieController != null) {
-        _chewieController!.pause();
+      if (!_showVideo) {
+        _youtubeController.pause();
       }
     });
   }
 
+  String _formatShowTimes() {
+    final showTimes = widget.movie['showTimes'] as List<dynamic>? ?? [];
+    if (showTimes.isEmpty) return 'No showtimes scheduled';
+
+    final recurringShows = showTimes.where((st) => st['isRecurring'] == true).toList();
+    final oneTimeShows = showTimes.where((st) => st['isRecurring'] != true).toList();
+
+    String result = '';
+
+    if (recurringShows.isNotEmpty) {
+      final dayGroups = <String, List<String>>{};
+      for (var show in recurringShows) {
+        final day = show['dayOfWeek'] ?? 'Day';
+        final time = show['time'] ?? 'Time';
+        dayGroups.putIfAbsent(day, () => []).add(time);
+      }
+
+      dayGroups.forEach((day, times) {
+        result += 'Schedule: \nEvery $day at ${times[0]}\n';
+      });
+    }
+
+    if (oneTimeShows.isNotEmpty) {
+      result += '\nSchedule:\nDate and Time:\n';
+      for (var show in oneTimeShows) {
+        final date = DateFormat('MMM dd, yyyy').format((show['timestamp'] as Timestamp).toDate());
+        result += '$date at ${show['time']}\n';
+      }
+    }
+
+    return result.trim();
+  }
+
+  List<String> _getTimesForSelectedDay() {
+    if (_selectedDay == null) return [];
+    
+    final showTimes = widget.movie['showTimes'] as List<dynamic>? ?? [];
+    return showTimes
+        .where((st) {
+          final showDate = (st['timestamp'] as Timestamp).toDate();
+          return showDate.year == _selectedDay!.year &&
+                 showDate.month == _selectedDay!.month &&
+                 showDate.day == _selectedDay!.day;
+        })
+        .map((st) => st['time'] as String? ?? 'Time')
+        .toList();
+  }
+
   @override
   void dispose() {
-    _videoPlayerController.dispose();
-    _chewieController?.dispose();
+    _youtubeController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final showDates = _getShowDates();
+    final timesForSelectedDay = _getTimesForSelectedDay();
+    final hasShowDates = showDates.isNotEmpty;
+
     return WillPopScope(
       onWillPop: () async {
         if (_showVideo) {
-          setState(() {
-            _showVideo = false;
-          });
+          setState(() => _showVideo = false);
           return false;
         }
-        context.go('/cinema/home');
-        return false;
+        return true;
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF121212),
         appBar: AppBar(
-          title: Text(widget.movie.title),
+          title: Text(widget.movie['title'] ?? 'Movie Details'),
           backgroundColor: const Color(0xFF121212),
           foregroundColor: Colors.green,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
               if (_showVideo) {
-                setState(() {
-                  _showVideo = false;
-                });
+                setState(() => _showVideo = false);
               } else {
                 context.go('/cinema/home');
               }
@@ -108,10 +153,7 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.edit),
-              onPressed: () {
-                // Navigate to edit movie screen
-                context.go('/edit-movie', extra: widget.movie);
-              },
+              onPressed: () => context.push('/cinema/edit-movie', extra: widget.movie),
             ),
           ],
         ),
@@ -123,15 +165,29 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
-                    _showVideo && _isVideoInitialized
-                        ? Chewie(controller: _chewieController!)
+                    _showVideo
+                        ? YoutubePlayer(
+                            controller: _youtubeController,
+                            aspectRatio: 16/9,
+                            showVideoProgressIndicator: true,
+                            progressIndicatorColor: Colors.green,
+                            progressColors: const ProgressBarColors(
+                              playedColor: Colors.green,
+                              handleColor: Colors.greenAccent,
+                            ),
+                            onReady: () {
+                              _youtubeController.addListener(() {});
+                            },
+                          )
                         : Image.network(
-                            widget.movie.imageUrl,
+                            widget.movie['posterUrl'] ?? '',
                             fit: BoxFit.cover,
                             width: double.infinity,
+                            errorBuilder: (context, error, stackTrace) => 
+                              Container(color: Colors.grey),
                           ),
 
-                    if (!_showVideo || !_isVideoInitialized)
+                    if (!_showVideo)
                       Positioned.fill(
                         child: Center(
                           child: IconButton(
@@ -147,12 +203,12 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                                 color: Colors.white,
                               ),
                             ),
-                            onPressed: _isVideoInitialized ? _toggleVideo : null,
+                            onPressed: _toggleVideo,
                           ),
                         ),
                       ),
 
-                    if (_showVideo && _isVideoInitialized)
+                    if (_showVideo)
                       Positioned(
                         top: 10,
                         right: 10,
@@ -182,7 +238,7 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      widget.movie.title,
+                      widget.movie['title'] ?? 'No Title',
                       style: const TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -193,21 +249,14 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                     Row(
                       children: [
                         Text(
-                          widget.movie.year,
+                          widget.movie['length'] ?? 'N/A',
                           style: const TextStyle(color: Colors.grey),
                         ),
                         const SizedBox(width: 8),
                         const Text('|', style: TextStyle(color: Colors.grey)),
                         const SizedBox(width: 8),
                         Text(
-                          widget.movie.genre,
-                          style: const TextStyle(color: Colors.grey),
-                        ),
-                        const SizedBox(width: 8),
-                        const Text('|', style: TextStyle(color: Colors.grey)),
-                        const SizedBox(width: 8),
-                        Text(
-                          widget.movie.length,
+                          widget.movie['genre'] ?? 'N/A',
                           style: const TextStyle(color: Colors.grey),
                         ),
                       ],
@@ -223,7 +272,7 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      widget.movie.description,
+                      widget.movie['description'] ?? 'No description available',
                       style: const TextStyle(color: Colors.grey),
                     ),
                     const SizedBox(height: 16),
@@ -240,15 +289,156 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                       height: 100,
                       child: ListView.builder(
                         scrollDirection: Axis.horizontal,
-                        itemCount: widget.movie.cast.length,
+                        itemCount: (widget.movie['casts'] as List<dynamic>? ?? []).length,
                         itemBuilder: (context, index) {
-                          return CastItem(actor: widget.movie.cast[index]);
+                          final cast = widget.movie['casts'][index];
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: Column(
+                              children: [
+                                CircleAvatar(
+                                  radius: 30,
+                                  backgroundImage: NetworkImage(cast['imageUrl'] ?? ''),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  cast['name'] ?? 'Cast',
+                                  style: const TextStyle(color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          );
                         },
                       ),
                     ),
+                    const SizedBox(height: 24),
+                    // ... [Keep all your existing widgets for title, description, cast etc.]
+
+                    // Show Schedule Section
+                    const Text(
+                      'Show Schedule',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _formatShowTimes(),
+                      style: const TextStyle(color: Colors.grey),
+                    ),
                     const SizedBox(height: 16),
-                    // No cinemas section for admin
-                    // No book ticket button for admin
+                    
+                    // Calendar Section - Only show if we have show dates
+                    if (hasShowDates) ...[
+                      const Text(
+                        'Calendar',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1E1E1E),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.all(8),
+                        child: TableCalendar(
+                          firstDay: showDates.reduce((a, b) => a.isBefore(b) ? a : b),
+                          lastDay: showDates.reduce((a, b) => a.isAfter(b) ? a : b),
+                          focusedDay: _focusedDay,
+                          calendarFormat: _calendarFormat,
+                          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
+                          onDaySelected: (selectedDay, focusedDay) {
+                            setState(() {
+                              _selectedDay = selectedDay;
+                              _focusedDay = focusedDay;
+                            });
+                          },
+                          onFormatChanged: (format) => setState(() => _calendarFormat = format),
+                          onPageChanged: (focusedDay) => _focusedDay = focusedDay,
+                          availableCalendarFormats: const {
+                            CalendarFormat.month: 'Month',
+                            CalendarFormat.week: 'Week',
+                          },
+                          calendarStyle: CalendarStyle(
+                            selectedDecoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                            todayDecoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.5),
+                              shape: BoxShape.circle,
+                            ),
+                            markerDecoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                            defaultTextStyle: const TextStyle(color: Colors.white),
+                            weekendTextStyle: const TextStyle(color: Colors.white),
+                            outsideDaysVisible: false,
+                          ),
+                          headerStyle: HeaderStyle(
+                            formatButtonVisible: true,
+                            formatButtonDecoration: BoxDecoration(
+                              border: Border.all(color: Colors.green),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            formatButtonTextStyle: const TextStyle(color: Colors.green),
+                            titleTextStyle: const TextStyle(color: Colors.white),
+                            leftChevronIcon: const Icon(Icons.chevron_left, color: Colors.green),
+                            rightChevronIcon: const Icon(Icons.chevron_right, color: Colors.green),
+                          ),
+                          daysOfWeekStyle: const DaysOfWeekStyle(
+                            weekdayStyle: TextStyle(color: Colors.white),
+                            weekendStyle: TextStyle(color: Colors.white),
+                          ),
+                          calendarBuilders: CalendarBuilders(
+                            defaultBuilder: (context, day, focusedDay) {
+                              final isShowDay = showDates.any((date) => isSameDay(date, day));
+                              return Center(
+                                child: Text(
+                                  day.day.toString(),
+                                  style: TextStyle(
+                                    color: isShowDay ? Colors.white : Colors.grey,
+                                    fontWeight: isShowDay ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Show times for selected day
+                      if (timesForSelectedDay.isNotEmpty) ...[
+                        const Text(
+                          'Times for selected day:',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          children: timesForSelectedDay.map((time) {
+                            return Chip(
+                              label: Text(
+                                time,
+                                style: const TextStyle(color: Colors.white),
+                              ),
+                              backgroundColor: Colors.green,
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
                   ],
                 ),
               ),

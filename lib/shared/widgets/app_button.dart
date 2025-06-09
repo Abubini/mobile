@@ -13,7 +13,7 @@ class AppButton extends StatelessWidget {
     required this.text,
     required this.onPressed,
     this.backgroundColor = AppColors.primary,
-    this.isDisabled = false,
+    this.isDisabled = false, required bool isLoading,
   });
 
   @override
