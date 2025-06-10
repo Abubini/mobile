@@ -34,6 +34,7 @@ class MovieService {
         'showTimes': showTimes,
         'createdAt': FieldValue.serverTimestamp(),
         'isActive': true,
+        
       });
       
       print('Movie added successfully to Firestore');

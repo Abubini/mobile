@@ -1,7 +1,9 @@
-// movie_detail_screen.dart
+// movie_detail_screen.dart;
+import 'package:cinema_app/features/booking/presentation/providers/booking_provider.dart';
 import 'package:cinema_app/features/home/data/repositories/movie_repo.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../../home/data/models/movie_model.dart';
 import '../widgets/cast_item.dart';
@@ -266,10 +268,37 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                               itemBuilder: (context, index) {
                                 return CinemaCard(
                                   cinema: _cinemas[index],
-                                  onTap: () => context.go('/booking', extra: {
-                                    'movie': widget.movie,
-                                    'cinema': widget.movie.cinemas[index],
-                                  }),
+                                  onTap: () async {
+                                    try {
+                                      final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+                                      await bookingProvider.initializeBooking(
+                                        widget.movie.id,
+                                        _cinemas[index].id,
+                                        widget.movie.title,
+                                        _cinemas[index].name,
+                                        widget.movie.cost, // Make sure this is passed correctly
+                                      );
+                                      
+                                      if (context.mounted) {
+                                        if (bookingProvider.getAvailableDates().isEmpty) {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text('No available showtimes for this cinema')),
+                                          );
+                                        } else {
+                                          context.push('/booking', extra: {
+                                            'movie': widget.movie,
+                                            'cinema': _cinemas[index],
+                                          });
+                                        }
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Error: ${e.toString()}')),
+                                        );
+                                      }
+                                    }
+                                  },
                                 );
                               },
                             ),

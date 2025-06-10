@@ -42,11 +42,11 @@ class TicketsScreen extends StatelessWidget {
               itemCount: ticketsProvider.tickets.length,
               itemBuilder: (context, index) {
                 final ticket = ticketsProvider.tickets[index];
-                return TicketItemWidget(
-                  ticket: ticket,
-                  onTap: () => context.go('/ticket-detail', extra: ticket),
-                  onDelete: () => ticketsProvider.deleteTicket(ticket.id),
-                );
+                // return TicketItemWidget(
+                //   ticket: ticket,
+                //   onTap: () => context.go('/ticket-detail', extra: ticket),
+                //   // onDelete: () => ticketsProvider.deleteTicket(ticket.id),
+                // );
               },
             ),
     ),

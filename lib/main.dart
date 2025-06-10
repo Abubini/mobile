@@ -24,11 +24,11 @@ Future<void> main() async {
           create: (context) => HomeProvider()..fetchMovies(),
         ),
         ChangeNotifierProvider(create: (_) => BookingProvider()),
-        ChangeNotifierProxyProvider<BookingProvider, TicketsProvider>(
-      create: (context) => TicketsProvider(context.read<BookingProvider>()),
-      update: (context, bookingProvider, ticketsProvider) => 
-        ticketsProvider ?? TicketsProvider(bookingProvider),
-    ),
+    //     ChangeNotifierProxyProvider<BookingProvider, TicketsProvider>(
+    //   create: (context) => TicketsProvider(),
+    //   update: (context, bookingProvider, ticketsProvider) => 
+    //     ticketsProvider ?? TicketsProvider(),
+    // ),
         Provider<List<Movie>>(create: (_) => []),
       ],
       child: const MyApp(),

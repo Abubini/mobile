@@ -296,6 +296,7 @@ class _AddMovieScreenState extends State<AddMovieScreen> {
               'timestamp': Timestamp.fromDate(showDateTime),
               'isRecurring': true,
               'dayOfWeek': day.toString().split('.').last,
+              'bookedSeats': [],
             });
           }
         }

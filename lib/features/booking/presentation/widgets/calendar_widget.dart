@@ -1,3 +1,4 @@
+// calendar_widget.dart
 import 'package:cinema_app/features/booking/presentation/providers/booking_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -8,7 +9,7 @@ class CalendarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bookingProvider = Provider.of<BookingProvider>(context);
-    final today = DateTime.now();
+    final availableDates = bookingProvider.getAvailableDates();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -24,30 +25,39 @@ class CalendarWidget extends StatelessWidget {
                 color: Colors.white,
               ),
             ),
-            IconButton(
-              icon: const Icon(Icons.calendar_today, color: Colors.green),
-              onPressed: () => _showDatePicker(context, bookingProvider),
-            ),
+            if (availableDates.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.calendar_today, color: Colors.green),
+                onPressed: () => _showDatePicker(context, bookingProvider, availableDates),
+              ),
           ],
         ),
         const SizedBox(height: 10),
-        _buildMiniCalendar(bookingProvider, today),
+        _buildMiniCalendar(bookingProvider, availableDates),
       ],
     );
   }
 
-  Widget _buildMiniCalendar(BookingProvider bookingProvider, DateTime today) {
-    final dates = List.generate(5, (index) => today.add(Duration(days: index - 2)));
+  Widget _buildMiniCalendar(BookingProvider bookingProvider, List<DateTime> availableDates) {
+    if (availableDates.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 10),
+        child: Text(
+          'No available dates',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
 
     return SizedBox(
       height: 70,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: dates.length,
+        itemCount: availableDates.length,
         itemBuilder: (context, index) {
-          final date = dates[index];
-          final isSelected = date.day == bookingProvider.selectedDate.day &&
-              date.month == bookingProvider.selectedDate.month;
+          final date = availableDates[index];
+          final isSelected = bookingProvider.selectedDate != null && 
+              DateUtils.isSameDay(date, bookingProvider.selectedDate!);
 
           return GestureDetector(
             onTap: () => bookingProvider.selectDate(date),
@@ -87,27 +97,27 @@ class CalendarWidget extends StatelessWidget {
     );
   }
 
-  void _showDatePicker(BuildContext context, BookingProvider bookingProvider) {
-  final now = DateTime.now();
-  
-  showDatePicker(
-    context: context,
-    initialDate: bookingProvider.selectedDate.isAfter(now) 
-        ? bookingProvider.selectedDate 
-        : now,
-    firstDate: now,
-    lastDate: now.add(const Duration(days: 30)),
-    selectableDayPredicate: (DateTime day) {
-      return day.isAfter(now.subtract(const Duration(days: 1)));
-    },
-    // ... rest of the code
-  ).then((pickedDate) {
-    if (pickedDate != null) {
-      bookingProvider.selectDate(pickedDate);
-      bookingProvider.clearSeats(); // Clear seats when date changes
-    }
-  });
-}
+  void _showDatePicker(
+    BuildContext context, 
+    BookingProvider bookingProvider,
+    List<DateTime> availableDates,
+  ) {
+    final now = DateTime.now();
+    
+    showDatePicker(
+      context: context,
+      initialDate: bookingProvider.selectedDate ?? availableDates.first,
+      firstDate: availableDates.first,
+      lastDate: availableDates.last,
+      selectableDayPredicate: (DateTime day) {
+        return availableDates.any((date) => DateUtils.isSameDay(date, day));
+      },
+    ).then((pickedDate) {
+      if (pickedDate != null) {
+        bookingProvider.selectDate(pickedDate);
+      }
+    });
+  }
 
   String _getWeekday(int weekday) {
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
