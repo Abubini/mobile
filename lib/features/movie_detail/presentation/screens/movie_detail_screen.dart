@@ -1,7 +1,7 @@
+// movie_detail_screen.dart
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
+import 'package:youtube_player_flutter/youtube_player_flutter.dart';
 import '../../../home/data/models/movie_model.dart';
 import '../widgets/cast_item.dart';
 import '../widgets/cinema_card.dart';
@@ -16,62 +16,34 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
-  late VideoPlayerController _videoPlayerController;
-  ChewieController? _chewieController;
+  late YoutubePlayerController _youtubeController;
   bool _showVideo = false;
-  bool _isVideoInitialized = false;
 
   @override
   void initState() {
     super.initState();
-    _initializeVideoPlayer();
-  }
-
-  Future<void> _initializeVideoPlayer() async {
-    _videoPlayerController = VideoPlayerController.network(widget.movie.trailerUrl);
-    
-    try {
-      await _videoPlayerController.initialize();
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController,
+    final videoId = YoutubePlayer.convertUrlToId(widget.movie.trailerUrl) ?? '';
+    _youtubeController = YoutubePlayerController(
+      initialVideoId: videoId,
+      flags: const YoutubePlayerFlags(
         autoPlay: false,
-        looping: false,
-        aspectRatio: _videoPlayerController.value.aspectRatio,
-        placeholder: Container(color: Colors.black),
-        errorBuilder: (context, errorMessage) {
-          return Center(
-            child: Text(
-              'Failed to load video',
-              style: TextStyle(color: Colors.white),
-            ),
-          );
-        },
-      );
-      setState(() {
-        _isVideoInitialized = true;
-      });
-    } catch (e) {
-      setState(() {
-        _isVideoInitialized = false;
-      });
-    }
+        mute: false,
+      ),
+    );
   }
 
   void _toggleVideo() {
     setState(() {
       _showVideo = !_showVideo;
-      if (_showVideo && _chewieController != null) {
-        _chewieController!.play();
-      } else if (_chewieController != null) {
-        _chewieController!.pause();
+      if (!_showVideo) {
+        _youtubeController.pause();
       }
     });
   }
 
   @override
   void dispose() {
-    _videoPlayerController.dispose();
-    _chewieController?.dispose();
+    _youtubeController.dispose();
     super.dispose();
   }
 
@@ -110,15 +82,19 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         body: SingleChildScrollView(
           child: Column(
             children: [
-              // Video/Image section that scrolls normally
+              // Video/Image section
               SizedBox(
-                height: 250, // Fixed height that won't change when scrolling
+                height: 250,
                 child: Stack(
                   alignment: Alignment.center,
                   children: [
                     // Video or Image display
-                    _showVideo && _isVideoInitialized
-                        ? Chewie(controller: _chewieController!)
+                    _showVideo
+                        ? YoutubePlayer(
+                            controller: _youtubeController,
+                            showVideoProgressIndicator: true,
+                            progressIndicatorColor: Colors.green,
+                          )
                         : Image.network(
                             widget.movie.imageUrl,
                             fit: BoxFit.cover,
@@ -126,7 +102,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                           ),
 
                     // Play/Pause button overlay
-                    if (!_showVideo || !_isVideoInitialized)
+                    if (!_showVideo)
                       Positioned.fill(
                         child: Center(
                           child: IconButton(
@@ -142,13 +118,13 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                                 color: Colors.white,
                               ),
                             ),
-                            onPressed: _isVideoInitialized ? _toggleVideo : null,
+                            onPressed: _toggleVideo,
                           ),
                         ),
                       ),
 
                     // Close video button when video is playing
-                    if (_showVideo && _isVideoInitialized)
+                    if (_showVideo)
                       Positioned(
                         top: 10,
                         right: 10,
@@ -172,7 +148,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 ),
               ),
 
-              // Content below
+              // Rest of the content remains the same...
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(

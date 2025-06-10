@@ -45,9 +45,34 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (movies.isEmpty) {
-      return const Center(child: Text('No movies available'));
-    }
+    if (homeProvider.movies.isEmpty) {
+  return Scaffold(
+    backgroundColor: const Color(0xFF121212),
+    appBar: AppBar(
+      title: const Text('BOOKMYSCREEN'),
+      backgroundColor: const Color(0xFF121212),
+      foregroundColor: Colors.green,
+      toolbarHeight: 40,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.settings, color: Colors.green),
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SettingsScreen()),
+            );
+          },
+        ),
+      ],
+    ),
+    body: const Center(child: Text('No movies available', style: TextStyle(color: Colors.white))),
+    floatingActionButton: FloatingActionButton(
+      onPressed: () => context.go('/tickets'),
+      backgroundColor: Colors.green,
+      child: const Icon(Icons.confirmation_number),
+    ),
+  );
+}
 
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
