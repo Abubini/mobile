@@ -3,40 +3,40 @@ import 'package:cinema_app/features/tickets/data/models/ticket_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/booking_model.dart';
-// import '../../tickets/data/models/ticket_model.dart';
 
 class BookingRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   Future<List<ShowTime>> getShowTimes(String movieId, String cinemaId) async {
-  try {
-    final doc = await _firestore
-        .collection('cinemas')
-        .doc(cinemaId)
-        .collection('movies')
-        .doc(movieId)
-        .get();
+    try {
+      // ✅ Access movies as subcollection
+      final doc = await _firestore
+          .collection('cinemas')
+          .doc(cinemaId)
+          .collection('movies')
+          .doc(movieId)
+          .get();
 
-    if (!doc.exists) return [];
+      if (!doc.exists) return [];
 
-    final data = doc.data() as Map<String, dynamic>;
-    final showTimes = data['showTimes'] as List<dynamic>? ?? [];
-    
-    return showTimes.map((st) {
-      final showTimeData = st as Map<String, dynamic>;
-      return ShowTime(
-        date: DateTime.parse(showTimeData['date']),
-        time: showTimeData['time'] as String,
-        bookedSeats: List<String>.from(showTimeData['bookedSeats'] ?? []),
-        price: data['cost']?.toDouble() ?? 0.0,
-      );
-    }).where((st) => st.date.isAfter(DateTime.now())).toList();
-  } catch (e) {
-    print('Error fetching show times: $e');
-    return [];
+      final data = doc.data() as Map<String, dynamic>;
+      final showTimes = data['showTimes'] as List<dynamic>? ?? [];
+      
+      return showTimes.map((st) {
+        final showTimeData = st as Map<String, dynamic>;
+        return ShowTime(
+          date: DateTime.parse(showTimeData['date']),
+          time: showTimeData['time'] as String,
+          bookedSeats: List<String>.from(showTimeData['bookedSeats'] ?? []),
+          price: data['cost']?.toDouble() ?? 0.0,
+        );
+      }).where((st) => st.date.isAfter(DateTime.now())).toList();
+    } catch (e) {
+      print('Error fetching show times: $e');
+      return [];
+    }
   }
-}
 
   Future<Ticket> bookTickets({
     required String movieId,
@@ -52,24 +52,23 @@ class BookingRepository {
     }
 
     try {
-      // Create booking document in user's subcollection
+      // 1. Create booking document in user's subcollection
       final bookingRef = await _firestore
           .collection('users')
           .doc(user.uid)
           .collection('bookings')
           .add({
-          'movieId': movieId,
-          'cinemaId': cinemaId,
-          'date': date.toIso8601String(),
-          'time': time,
-          'seats': seats,
-          'totalCost': seats.length * seatPrice,
-          'userId': user.uid,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      
+        'movieId': movieId,
+        'cinemaId': cinemaId,
+        'date': date.toIso8601String(),
+        'time': time,
+        'seats': seats,
+        'totalCost': seats.length * seatPrice,
+        'userId': user.uid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
 
-      // Also store in global bookings collection for admin purposes
+      // 2. Also store in global bookings collection for admin purposes
       await _firestore.collection('bookings').add(
         Booking(
           movieId: movieId,
@@ -82,42 +81,88 @@ class BookingRepository {
         ).toMap(),
       );
 
-      // Update showtime with booked seats
-      final showTimeRef = _firestore
+      // 3. Update showtime with booked seats in the movie subcollection
+      final movieRef = _firestore
+          .collection('cinemas')
+          .doc(cinemaId)
+          .collection('movies')
+          .doc(movieId);
+          
+      await _firestore.runTransaction((transaction) async {
+        final snapshot = await transaction.get(movieRef);
+        
+        if (!snapshot.exists) {
+          throw Exception('Movie document not found');
+        }
+        
+        final data = snapshot.data();
+        if (data == null || !data.containsKey('showTimes')) {
+          throw Exception('ShowTimes not found for movie');
+        }
+
+        final showTimes = List<dynamic>.from(data['showTimes'] as List);
+
+        // Update the specific showtime
+        final updatedShowTimes = showTimes.map((st) {
+          try {
+            final showTime = Map<String, dynamic>.from(st as Map<String, dynamic>);
+            final showTimeDate = showTime['date'] as String?;
+            final showTimeTime = showTime['time'] as String?;
+            
+            // ✅ Better date comparison
+            final targetDateString = date.toIso8601String().split('T')[0];
+            
+            if (showTimeDate == targetDateString && showTimeTime == time) {
+              final bookedSeats = List<String>.from(showTime['bookedSeats'] as List? ?? []);
+              return {
+                ...showTime,
+                'bookedSeats': [...bookedSeats, ...seats],
+              };
+            }
+            return showTime;
+          } catch (e) {
+            print('Error processing showtime: $e');
+            return st;
+          }
+        }).toList();
+
+        // ✅ Update the movie document with updated showTimes
+        transaction.update(movieRef, {'showTimes': updatedShowTimes});
+      });
+
+      // 4. Get ticket details from movie subcollection
+      final movieDoc = await _firestore
           .collection('cinemas')
           .doc(cinemaId)
           .collection('movies')
           .doc(movieId)
-          .collection('showTimes')
-          .doc('${date.year}-${date.month}-${date.day}-$time');
+          .get();
+          
+      if (!movieDoc.exists) {
+        throw Exception('Failed to load movie details');
+      }
 
-      await _firestore.runTransaction((transaction) async {
-        final snapshot = await transaction.get(showTimeRef);
-        if (snapshot.exists) {
-          final currentSeats = List<String>.from(snapshot.data()!['bookedSeats'] ?? []);
-          transaction.update(showTimeRef, {
-            'bookedSeats': [...currentSeats, ...seats],
-          });
-        }
-      });
-
-      // Get movie and cinema details for ticket
+      final movieData = movieDoc.data()!;
+      
+      // Get cinema name for the ticket
       final cinemaDoc = await _firestore.collection('cinemas').doc(cinemaId).get();
-      final movieDoc = cinemaDoc['movies'][movieId];
+      final cinemaName = cinemaDoc.exists && cinemaDoc.data() != null 
+          ? cinemaDoc.data()!['name'] as String? ?? 'Unknown Cinema'
+          : 'Unknown Cinema';
 
       return Ticket(
-      id: bookingRef.id,
-      movieName: movieDoc['title'],
-      genre: movieDoc['genre'],
-      date: '${date.day}/${date.month}/${date.year}',
-      time: time,
-      theater: cinemaDoc['name'],
-      seats: seats,
-      cost: '${seats.length * seatPrice} ETB',
-    );
+        id: bookingRef.id,
+        movieName: movieData['title'] as String? ?? 'Unknown Movie',
+        genre: movieData['genre'] as String? ?? 'Unknown Genre',
+        date: '${date.day}/${date.month}/${date.year}',
+        time: time,
+        theater: cinemaName,
+        seats: seats,
+        cost: '${seats.length * seatPrice} ETB',
+      );
     } catch (e) {
       print('Error booking tickets: $e');
-      throw Exception('Failed to book tickets');
+      throw Exception('Failed to book tickets: ${e.toString()}');
     }
   }
 
@@ -134,10 +179,10 @@ class BookingRepository {
         return Booking(
           movieId: data['movieId'],
           cinemaId: data['cinemaId'],
-          date: (data['date'] as Timestamp).toDate(),
+          date: DateTime.parse(data['date']), // ✅ Parse ISO string back to DateTime
           time: data['time'],
           seats: List<String>.from(data['seats']),
-          totalCost: data['totalCost'],
+          totalCost: data['totalCost']?.toDouble() ?? 0.0,
         );
       }).toList();
     } catch (e) {
