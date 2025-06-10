@@ -1,4 +1,5 @@
 // movie_detail_screen.dart
+import 'package:cinema_app/features/home/data/repositories/movie_repo.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:youtube_player_flutter/youtube_player_flutter.dart';
@@ -18,6 +19,9 @@ class MovieDetailScreen extends StatefulWidget {
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   late YoutubePlayerController _youtubeController;
   bool _showVideo = false;
+  List<Cinema> _cinemas = [];
+  bool _isLoadingCinemas = false;
+  final MovieRepository _movieRepository = MovieRepository();
 
   @override
   void initState() {
@@ -30,6 +34,25 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         mute: false,
       ),
     );
+    _loadCinemas();
+  }
+  Future<void> _loadCinemas() async {
+    setState(() {
+      _isLoadingCinemas = true;
+    });
+    
+    try {
+      final cinemas = await _movieRepository.getCinemasForMovie(widget.movie.title);
+      setState(() {
+        _cinemas = cinemas;
+      });
+    } catch (e) {
+      print('Error loading cinemas: $e');
+    } finally {
+      setState(() {
+        _isLoadingCinemas = false;
+      });
+    }
   }
 
   void _toggleVideo() {
@@ -229,20 +252,27 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: widget.movie.cinemas.length,
-                      itemBuilder: (context, index) {
-                        return CinemaCard(
-                          cinema: widget.movie.cinemas[index],
-                          onTap: () => context.go('/booking', extra: {
-                            'movie': widget.movie,
-                            'cinema': widget.movie.cinemas[index],
-                          }),
-                        );
-                      },
-                    ),
+                    _isLoadingCinemas
+                        ? const Center(child: CircularProgressIndicator())
+                        : _cinemas.isEmpty
+                            ? const Text(
+                                'No cinemas available for this movie',
+                                style: TextStyle(color: Colors.grey),
+                              )
+                            :ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: _cinemas.length,
+                              itemBuilder: (context, index) {
+                                return CinemaCard(
+                                  cinema: _cinemas[index],
+                                  onTap: () => context.go('/booking', extra: {
+                                    'movie': widget.movie,
+                                    'cinema': widget.movie.cinemas[index],
+                                  }),
+                                );
+                              },
+                            ),
                   ],
                 ),
               ),

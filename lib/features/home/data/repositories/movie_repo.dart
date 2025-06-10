@@ -7,13 +7,13 @@ class MovieRepository {
 
   Future<List<Movie>> getMovies() async {
     try {
-      // First get all cinemas
+      // Get all cinemas
       final cinemaQuery = await _firestore.collection('cinemas').get();
       final cinemas = cinemaQuery.docs
           .map((doc) => Cinema.fromFirestore(doc))
           .toList();
 
-      // Then get all movies from all cinemas
+      // Get all movies from all cinemas
       final movies = <Movie>[];
       
       for (var cinemaDoc in cinemaQuery.docs) {
@@ -25,13 +25,7 @@ class MovieRepository {
             .get();
 
         for (var movieDoc in moviesQuery.docs) {
-          // Find cinemas that have this movie (by title)
-          final movieCinemas = cinemas.where((cinema) {
-            return moviesQuery.docs.any((m) => 
-                m.data()['title'] == movieDoc.data()['title']);
-          }).toList();
-
-          movies.add(Movie.fromFirestore(movieDoc, movieCinemas));
+          movies.add(Movie.fromFirestore(movieDoc, [])); // Empty cinemas list for now
         }
       }
 
@@ -46,6 +40,39 @@ class MovieRepository {
       return uniqueMovies.values.toList();
     } catch (e) {
       print('Error fetching movies: $e');
+      return [];
+    }
+  }
+
+  Future<List<Cinema>> getCinemasForMovie(String movieTitle) async {
+    try {
+      final cinemaQuery = await _firestore.collection('cinemas').get();
+      final cinemasWithMovie = <Cinema>[];
+
+      for (var cinemaDoc in cinemaQuery.docs) {
+        final movieQuery = await _firestore
+            .collection('cinemas')
+            .doc(cinemaDoc.id)
+            .collection('movies')
+            .where('title', isEqualTo: movieTitle)
+            .where('isActive', isEqualTo: true)
+            .get();
+
+        if (movieQuery.docs.isNotEmpty) {
+          final cinemaData = cinemaDoc.data() as Map<String, dynamic>;
+          cinemasWithMovie.add(Cinema(
+            id: cinemaDoc.id,
+            name: cinemaData['name'] ?? '',
+            location: cinemaData['location'] ?? '',
+            imageUrl: cinemaData['imageUrl'] ?? '',
+            phoneNumber: cinemaData['phoneNumber'] ?? '',
+          ));
+        }
+      }
+
+      return cinemasWithMovie;
+    } catch (e) {
+      print('Error fetching cinemas for movie: $e');
       return [];
     }
   }

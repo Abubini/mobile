@@ -77,17 +77,20 @@ class Actor {
   }
 }
 
+// movie_model.dart
 class Cinema {
   final String id;
   final String name;
   final String location;
   final String imageUrl;
+  final String phoneNumber;
 
   Cinema({
     required this.id,
     required this.name,
     required this.location,
     required this.imageUrl,
+    required this.phoneNumber,
   });
 
   factory Cinema.fromFirestore(DocumentSnapshot doc) {
@@ -97,6 +100,7 @@ class Cinema {
       name: data['name'] ?? '',
       location: data['location'] ?? '',
       imageUrl: data['imageUrl'] ?? '',
+      phoneNumber: data['phoneNumber'] ?? '',
     );
   }
 }

@@ -1,3 +1,4 @@
+// cinema_card.dart
 import 'package:flutter/material.dart';
 import '../../../home/data/models/movie_model.dart';
 
@@ -26,7 +27,9 @@ class CinemaCard extends StatelessWidget {
             Opacity(
               opacity: 0.3,
               child: Image.network(
-                cinema.imageUrl,
+                cinema.imageUrl.isNotEmpty 
+                    ? cinema.imageUrl 
+                    : 'https://images.unsplash.com/photo-1506744038136-46273834b3fb',
                 height: 80,
                 width: double.infinity,
                 fit: BoxFit.cover,
@@ -35,7 +38,7 @@ class CinemaCard extends StatelessWidget {
             Container(
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(8),
-                color: Colors.black.withOpacity(1), // Adjust opacity as needed
+                color: Colors.black.withOpacity(1),
               ),
             ),
             Padding(
@@ -59,8 +62,14 @@ class CinemaCard extends StatelessWidget {
                       fontSize: 12,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  
+                  const SizedBox(height: 4),
+                  Text(
+                    cinema.phoneNumber,
+                    style: const TextStyle(
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ),
                 ],
               ),
             ),
