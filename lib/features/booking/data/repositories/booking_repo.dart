@@ -64,6 +64,7 @@ class BookingRepository {
           'time': time,
           'seats': seats,
           'totalCost': seats.length * seatPrice,
+          'userId': user.uid,
           'createdAt': FieldValue.serverTimestamp(),
         });
       

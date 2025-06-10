@@ -42,59 +42,66 @@ GoRoute(
     
     return ChangeNotifierProvider(
       create: (_) => BookingProvider(),
-      child: FutureBuilder(
-        future: Provider.of<BookingProvider>(context, listen: false)
-            .initializeBooking(
+      child: Builder(
+        builder: (context) {
+          final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
+          
+          return FutureBuilder(
+            future: bookingProvider.initializeBooking(
               movie.id,
               cinema.id,
               movie.title,
               cinema.name,
               movie.cost,
             ),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              backgroundColor: Color(0xFF121212),
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          
-          if (snapshot.hasError) {
-            return Scaffold(
-              backgroundColor: const Color(0xFF121212),
-              appBar: AppBar(
-                title: const Text('Booking'),
+            builder: (context, snapshot) {
+              // Show loading while initializing
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  backgroundColor: Color(0xFF121212),
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+
+              // Show error if any
+              if (snapshot.hasError) {
+                return Scaffold(
+                  backgroundColor: const Color(0xFF121212),
+                  appBar: AppBar(
+                    title: const Text('Booking'),
+                    backgroundColor: const Color(0xFF121212),
+                    foregroundColor: Colors.green,
+                  ),
+                  body: Center(
+                    child: Text(
+                      'Error: ${snapshot.error}',
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                  ),
+                );
+              }
+
+              // Check if we have showtimes
+              final hasShowtimes = bookingProvider.getAvailableDates().isNotEmpty;
+              
+              return Scaffold(
                 backgroundColor: const Color(0xFF121212),
-                foregroundColor: Colors.green,
-              ),
-              body: Center(
-                child: Text(
-                  'Error: ${snapshot.error}',
-                  style: const TextStyle(color: Colors.white),
-                ),
-              ),
-            );
-          }
-          
-          final bookingProvider = Provider.of<BookingProvider>(context, listen: false);
-          if (bookingProvider.getAvailableDates().isEmpty) {
-            return Scaffold(
-              backgroundColor: const Color(0xFF121212),
-              appBar: AppBar(
-                title: const Text('Booking'),
-                backgroundColor: const Color(0xFF121212),
-                foregroundColor: Colors.green,
-              ),
-              body: const Center(
-                child: Text(
-                  'No available showtimes',
-                  style: TextStyle(color: Colors.white),
-                ),
-              ),
-            );
-          }
-          
-          return const BookingScreen();
+                // appBar: AppBar(
+                //   title: Text(hasShowtimes ? 'Book Tickets' : 'No Showtimes'),
+                //   backgroundColor: const Color(0xFF121212),
+                //   foregroundColor: Colors.green,
+                // ),
+                body: hasShowtimes 
+                    ? const BookingScreen()
+                    : const Center(
+                        child: Text(
+                          'No available showtimes for this movie',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
+              );
+            },
+          );
         },
       ),
     );
