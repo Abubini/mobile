@@ -24,12 +24,9 @@ Future<void> main() async {
           create: (context) => HomeProvider()..fetchMovies(),
         ),
         ChangeNotifierProvider(create: (_) => BookingProvider()),
-    //     ChangeNotifierProxyProvider<BookingProvider, TicketsProvider>(
-    //   create: (context) => TicketsProvider(),
-    //   update: (context, bookingProvider, ticketsProvider) => 
-    //     ticketsProvider ?? TicketsProvider(),
-    // ),
-        Provider<List<Movie>>(create: (_) => []),
+        ChangeNotifierProvider(
+            create: (context) => TicketsProvider()..loadUserTickets(),
+          ),
       ],
       child: const MyApp(),
     ),

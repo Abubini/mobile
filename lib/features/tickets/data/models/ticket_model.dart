@@ -20,31 +20,78 @@ class Ticket {
   });
 
   String get formattedDate {
-    final dateTime = DateTime.parse(date);
-    return '${_getWeekday(dateTime.weekday)}, ${_getMonthName(dateTime.month)} ${dateTime.day}, ${dateTime.year}';
+    try {
+      final dateTime = DateTime.parse(date);
+      return '${_getWeekday(dateTime.weekday)}, ${_getMonthName(dateTime.month)} ${dateTime.day}, ${dateTime.year}';
+    } catch (e) {
+      return date; // Fallback to raw date if parsing fails
+    }
   }
 
   String get formattedTime {
-    final timeParts = time.split(':');
-    final hour = int.parse(timeParts[0]);
-    final minute = timeParts[1];
-    final ampm = hour >= 12 ? 'PM' : 'AM';
-    final hour12 = hour % 12 == 0 ? 12 : hour % 12;
-    return '$hour12:$minute $ampm';
+    try {
+      final timeParts = time.split(':');
+      final hour = int.parse(timeParts[0]);
+      final minute = timeParts[1];
+      final ampm = hour >= 12 ? 'PM' : 'AM';
+      final hour12 = hour % 12 == 0 ? 12 : hour % 12;
+      return '$hour12:$minute $ampm';
+    } catch (e) {
+      return time; // Fallback to raw time if parsing fails
+    }
   }
 
   DateTime get dateTime {
-  final timeParts = time.split(':');
-  return DateTime(
-    DateTime.parse(date).year,
-    DateTime.parse(date).month,
-    DateTime.parse(date).day,
-    int.parse(timeParts[0]),
-    int.parse(timeParts[1]),
-  );
+  try {
+    // Handle different possible date formats
+    if (date.contains('/')) {
+      // Handle "dd/MM/yyyy" format
+      final dateParts = date.split('/');
+      final timeParts = time.split(':');
+      
+      // Handle 12-hour format with AM/PM if present
+      var hour = int.parse(timeParts[0]);
+      var minute = int.parse(timeParts[1].split(' ')[0]);
+      
+      if (time.contains('PM') && hour != 12) {
+        hour += 12;
+      } else if (time.contains('AM') && hour == 12) {
+        hour = 0;
+      }
+      
+      return DateTime(
+        int.parse(dateParts[2]), // year
+        int.parse(dateParts[1]), // month
+        int.parse(dateParts[0]), // day
+        hour,
+        minute,
+      );
+    } else {
+      // Handle ISO string format
+      final dateTimeObj = DateTime.parse(date);
+      final timeParts = time.split(':');
+      return DateTime(
+        dateTimeObj.year,
+        dateTimeObj.month,
+        dateTimeObj.day,
+        int.parse(timeParts[0]),
+        int.parse(timeParts[1]),
+      );
+    }
+  } catch (e) {
+    print('Error parsing dateTime: $e');
+    return DateTime.now().add(const Duration(days: 1)); // Fallback to tomorrow
+  }
 }
 
-bool get isValid => dateTime.isAfter(DateTime.now());
+
+  bool get isValid {
+  final now = DateTime.now();
+  final dt = dateTime;
+  print("Now: $now, Ticket time: $dt");
+  return dt.isAfter(now);
+}
+
 
   String _getWeekday(int weekday) {
     const weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

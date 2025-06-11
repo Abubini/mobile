@@ -42,7 +42,7 @@ class TicketItemWidget extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       '${ticket.formattedDate} • ${ticket.formattedTime}\n'
-                      '${ticket.theater} • Seats: ${ticket.seats.take(5).join(', ')}..',
+                      '${ticket.theater} • Seats: ${ticket.seats.take(5).join(', ')}${ticket.seats.length > 5 ? '...' : ''}',
                       style: const TextStyle(
                         fontSize: 14,
                         color: Colors.grey,
@@ -55,7 +55,6 @@ class TicketItemWidget extends StatelessWidget {
                 ticket: ticket,
                 onDelete: onDelete,
                 onReschedule: () {
-                  // Handle reschedule
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Reschedule feature coming soon!')),
                   );

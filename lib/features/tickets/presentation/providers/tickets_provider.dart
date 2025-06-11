@@ -1,15 +1,13 @@
-// tickets_provider.dart
 import 'package:cinema_app/features/booking/data/repositories/booking_repo.dart';
 import 'package:cinema_app/features/tickets/data/models/ticket_model.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-// import '../../booking/data/repositories/booking_repo.dart';
-// import '../models/ticket_model.dart';
 
 class TicketsProvider with ChangeNotifier {
   final BookingRepository _bookingRepository = BookingRepository();
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   
   List<Ticket> _tickets = [];
   bool _isLoading = false;
@@ -18,45 +16,52 @@ class TicketsProvider with ChangeNotifier {
   bool get isLoading => _isLoading;
 
   Future<void> loadUserTickets() async {
-    final user = _auth.currentUser;
-    if (user == null) return;
+  final user = _auth.currentUser;
+  if (user == null) return;
 
-    _isLoading = true;
+  _isLoading = true;
+  notifyListeners();
+
+  try {
+    final bookings = await _bookingRepository.getUserBookings(user.uid);
+    _tickets = await Future.wait(bookings.map((booking) async {
+      final movieDoc = await _firestore
+          .collection('cinemas')
+          .doc(booking.cinemaId)
+          .collection('movies')
+          .doc(booking.movieId)
+          .get();
+      final cinemaDoc = await _firestore
+          .collection('cinemas')
+          .doc(booking.cinemaId)
+          .get();
+
+      // Format date as dd/MM/yyyy
+      final formattedDate = 
+          '${booking.date.day.toString().padLeft(2, '0')}/'
+          '${booking.date.month.toString().padLeft(2, '0')}/'
+          '${booking.date.year}';
+
+      return Ticket(
+        id: booking.id ?? booking.movieId,
+        movieName: movieDoc['title'] ?? 'Unknown Movie',
+        genre: movieDoc['genre'] ?? 'Unknown Genre',
+        date: formattedDate, // Use formatted date
+        time: booking.time,
+        theater: cinemaDoc['name'] ?? 'Unknown Cinema',
+        seats: booking.seats,
+        cost: '${booking.totalCost} ETB',
+      );
+    }));
+    
+    _tickets.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+  } catch (e) {
+    debugPrint('Error loading tickets: $e');
+  } finally {
+    _isLoading = false;
     notifyListeners();
-
-    try {
-      // Convert bookings to tickets
-      final bookings = await _bookingRepository.getUserBookings(user.uid);
-      _tickets = await Future.wait(bookings.map((booking) async {
-        final movieDoc = await FirebaseFirestore.instance
-            .collection('cinemas')
-            .doc(booking.cinemaId)
-            .collection('movies')
-            .doc(booking.movieId)
-            .get();
-        final cinemaDoc = await FirebaseFirestore.instance
-            .collection('cinemas')
-            .doc(booking.cinemaId)
-            .get();
-
-        return Ticket(
-          id: booking.movieId, // You might want to use a different ID here
-          movieName: movieDoc['title'],
-          genre: movieDoc['genre'],
-          date: '${booking.date.day}/${booking.date.month}/${booking.date.year}',
-          time: booking.time,
-          theater: cinemaDoc['name'],
-          seats: booking.seats,
-          cost: '${booking.totalCost} ETB',
-        );
-      }));
-    } catch (e) {
-      print('Error loading tickets: $e');
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
   }
+}
 
   Future<void> addTicket(Ticket ticket) async {
     _tickets.insert(0, ticket);

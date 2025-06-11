@@ -3,12 +3,10 @@ import 'package:cinema_app/features/ticket_detail/presentation/widgets/qr_code_w
 import 'package:cinema_app/features/tickets/data/models/ticket_model.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-// import 'package:provider/provider.dart';
 import '../../../../shared/widgets/app_button.dart';
 
 class TicketDetailScreen extends StatelessWidget {
   final Ticket ticket;
-  
 
   const TicketDetailScreen({
     super.key,
@@ -18,165 +16,148 @@ class TicketDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ticket = GoRouterState.of(context).extra as Ticket;
-    
-    
 
     return WillPopScope(
       onWillPop: () async {
         context.go('/tickets');
         return false; // Prevent default back behavior
       },
-      
-
-    child: Scaffold(
-      backgroundColor: Colors.black.withOpacity(0.8),
-      body: Center(
-        child: Stack(
-          children: [
-            Container(
-              width: MediaQuery.of(context).size.width * 0.85,
-              constraints: const BoxConstraints(maxWidth: 300),
-              padding: const EdgeInsets.all(15),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1a1a1a),
-                borderRadius: BorderRadius.circular(8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.4),
-                    blurRadius: 15,
-                    spreadRadius: 5,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Center(
-                    child: Text(
-                      'Ticket',
-                      style: TextStyle(
-                        color: Colors.green,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+      child: Scaffold(
+        backgroundColor: Colors.black.withOpacity(0.8),
+        body: Center(
+          child: Stack(
+            children: [
+              Container(
+                width: MediaQuery.of(context).size.width * 0.85,
+                constraints: const BoxConstraints(maxWidth: 300),
+                padding: const EdgeInsets.all(15),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1a1a1a),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.4),
+                      blurRadius: 15,
+                      spreadRadius: 5,
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  _buildTicketRow('Movie', ticket.movieName),
-                  _buildTicketRow('Genre', ticket.genre),
-                  
-                  Row(
-                    children: [
-                      const Text(
-                        'Date',
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Center(
+                      child: Text(
+                        'Ticket',
                         style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 11,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        ticket.formattedDate,
-                        style: const TextStyle(
                           color: Colors.green,
-                          fontSize: 13,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.calendar_today, size: 16, color: Colors.green),
-                        onPressed: () => _showCalendar(context, ticket.date),
-                      ),
-                    ],
-                  ),
-                  
-                  _buildTicketRow('Time', ticket.formattedTime),
-                  
-                  // Countdown
-                  CountdownWidget(targetDate: ticket.dateTime),
-                  
-                  _buildTicketRow('Theater', ticket.theater),
-                  _buildTicketRow('Seats',
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 2,
-                      children: ticket.seats.map((seat) => Text(seat,style: const TextStyle(
-                        color: Colors.green, // Explicit green color for seats
-                        fontSize: 13,       // Match the size of other ticket info
-                      ),)).toList(),
                     ),
-                    isWidget: true,),
-                  _buildTicketRow('Cost', ticket.cost),
-                  
-                  // QR Code
-                  const SizedBox(height: 12),
-                  Center(
-                    child: QRCodeWidget(ticket: ticket),
-                  ),
-                  // Add this widget after the QR code section:
-                  Builder(
-                    builder: (context) {
-                      final now = DateTime.now();
-                      final ticketDateTime = DateTime(
-                        DateTime.parse(ticket.date).year,
-                        DateTime.parse(ticket.date).month,
-                        DateTime.parse(ticket.date).day,
-                        int.parse(ticket.time.split(':')[0]),
-                        int.parse(ticket.time.split(':')[1]),
-                      );
-                      final isValid = ticketDateTime.isAfter(now);
-
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          isValid ? 'Valid Ticket' : 'Expired Ticket',
+                    const SizedBox(height: 12),
+                    
+                    _buildTicketRow('Movie', ticket.movieName),
+                    _buildTicketRow('Genre', ticket.genre),
+                    
+                    Row(
+                      children: [
+                        const Text(
+                          'Date',
                           style: TextStyle(
-                            color: isValid ? Colors.green : Colors.red,
-                            fontWeight: FontWeight.bold,
+                            color: Colors.grey,
+                            fontSize: 11,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ],
+                        const SizedBox(width: 8),
+                        Text(
+                          ticket.formattedDate,
+                          style: const TextStyle(
+                            color: Colors.green,
+                            fontSize: 13,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.calendar_today, size: 16, color: Colors.green),
+                          onPressed: () => _showCalendar(context, ticket.date),
+                        ),
+                      ],
+                    ),
+                    
+                    _buildTicketRow('Time', ticket.formattedTime),
+                    
+                    // Countdown
+                    CountdownWidget(ticket: ticket),
+                    
+                    _buildTicketRow('Theater', ticket.theater),
+                    _buildTicketRow('Seats',
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 2,
+                        children: ticket.seats.map((seat) => Text(seat,style: const TextStyle(
+                          color: Colors.green, // Explicit green color for seats
+                          fontSize: 13,       // Match the size of other ticket info
+                        ),)).toList(),
+                      ),
+                      isWidget: true,),
+                    _buildTicketRow('Cost', ticket.cost),
+                    
+                    // QR Code
+                    const SizedBox(height: 12),
+                    Center(
+                      child: QRCodeWidget(ticket: ticket),
+                    ),
+                    
+                    // FIXED: Use ticket.isValid instead of manual parsing
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        ticket.isValid ? 'Valid Ticket' : 'Expired Ticket',
+                        style: TextStyle(
+                          color: ticket.isValid ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Positioned(
-              top: 10,
-              right: 10,
-              child: IconButton(
-                icon: Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF333333),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Text(
-                      '×',
-                      style: TextStyle(
-                        color: Colors.green,
-                        fontSize: 14,
+              Positioned(
+                top: 10,
+                right: 10,
+                child: IconButton(
+                  icon: Container(
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF333333),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Text(
+                        '×',
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
+                  onPressed: () {
+                    // Try to pop first, if that fails, go to tickets page
+                    if (!context.canPop()) {
+                      context.go('/tickets');
+                    } else {
+                      context.pop();
+                    }
+                  },
                 ),
-                onPressed: () {
-  // Try to pop first, if that fails, go to tickets page
-                  if (!context.canPop()) {
-                    context.go('/tickets');
-                  } else {
-                    context.pop();
-                  }
-                },
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ),
     );
   }
 
@@ -217,6 +198,28 @@ class TicketDetailScreen extends StatelessWidget {
       context: context,
       builder: (context) {
         bool _isLoading = false;
+        
+        // FIXED: Use the same parsing logic as in the Ticket model
+        DateTime parsedDate;
+        try {
+          if (date.contains('/')) {
+            // Handle dd/MM/yyyy format
+            final parts = date.split('/');
+            parsedDate = DateTime(
+              int.parse(parts[2]), // year
+              int.parse(parts[1]), // month
+              int.parse(parts[0]), // day
+            );
+          } else {
+            // Fallback to ISO parsing if format is different
+            parsedDate = DateTime.parse(date);
+          }
+        } catch (e) {
+          debugPrint('Error parsing date: $e');
+          // Fallback to current date if parsing fails
+          parsedDate = DateTime.now();
+        }
+
         return AlertDialog(
           backgroundColor: const Color(0xFF1e1e1e),
           title: const Text(
@@ -229,15 +232,16 @@ class TicketDetailScreen extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  '${_getMonthName(DateTime.parse(date).month)} ${DateTime.parse(date).year}',
+                  '${_getMonthName(parsedDate.month)} ${parsedDate.year}',
                   style: const TextStyle(color: Colors.white),
                 ),
                 const SizedBox(height: 10),
-                _buildCalendarGrid(date),
+                _buildCalendarGrid(parsedDate), // Pass DateTime object directly
                 const SizedBox(height: 15),
                 AppButton(
                   text: 'Close',
-                  onPressed: () => Navigator.pop(context), isLoading:_isLoading,
+                  onPressed: () => Navigator.pop(context),
+                  isLoading: _isLoading,
                 ),
               ],
             ),
@@ -255,8 +259,7 @@ class TicketDetailScreen extends StatelessWidget {
     return months[month - 1];
   }
 
-  Widget _buildCalendarGrid(String date) {
-    final ticketDate = DateTime.parse(date);
+  Widget _buildCalendarGrid(DateTime ticketDate) {
     final firstDay = DateTime(ticketDate.year, ticketDate.month, 1);
     final daysInMonth = DateTime(ticketDate.year, ticketDate.month + 1, 0).day;
     

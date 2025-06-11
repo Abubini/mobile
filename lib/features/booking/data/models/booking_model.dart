@@ -20,15 +20,17 @@ class ShowTime {
 }
 
 class Booking {
+  final String? id;  // Add this field
   final String movieId;
   final String cinemaId;
   final DateTime date;
   final String time;
   final List<String> seats;
   final double totalCost;
-  final String? userId; // For admin purposes
+  final String? userId;
 
   Booking({
+    this.id,  // Add this
     required this.movieId,
     required this.cinemaId,
     required this.date,
@@ -42,13 +44,28 @@ class Booking {
     return {
       'movieId': movieId,
       'cinemaId': cinemaId,
-      'date': Timestamp.fromDate(date),
+      'date': date.toIso8601String(), // Changed from Timestamp to ISO string
       'time': time,
       'seats': seats,
       'totalCost': totalCost,
       'userId': userId,
       'createdAt': FieldValue.serverTimestamp(),
     };
+  }
+
+  // Add this factory method
+  factory Booking.fromFirestore(DocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    return Booking(
+      id: doc.id,
+      movieId: data['movieId'],
+      cinemaId: data['cinemaId'],
+      date: DateTime.parse(data['date']),
+      time: data['time'],
+      seats: List<String>.from(data['seats']),
+      totalCost: data['totalCost']?.toDouble() ?? 0.0,
+      userId: data['userId'],
+    );
   }
 }
 class Cinema {
