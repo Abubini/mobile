@@ -16,8 +16,9 @@ class CinemaSettingsScreen extends StatefulWidget {
 
 class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
   bool _isChangingPassword = false;
-  final TextEditingController _oldPasswordController = TextEditingController();
+  final TextEditingController _currentPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   String _cinemaName = 'CINEMA_ADMIN'; // Default value
   late StreamSubscription<DocumentSnapshot> _cinemaSubscription;
@@ -30,8 +31,9 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
 
   @override
   void dispose() {
-    _oldPasswordController.dispose();
+    _currentPasswordController.dispose();
     _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     _cinemaSubscription.cancel();
     super.dispose();
   }
@@ -53,11 +55,60 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
     }
   }
 
+  Future<void> _showConfirmationDialog() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1a1a1a),
+          title: const Text(
+            'Confirm Password Change',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Are you sure you want to change your password?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text(
+                'Yes',
+                style: TextStyle(color: Colors.green),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _changePassword();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _changePassword() async {
-    if (_oldPasswordController.text.isEmpty || 
-        _newPasswordController.text.isEmpty) {
+    if (_currentPasswordController.text.isEmpty || 
+        _newPasswordController.text.isEmpty || 
+        _confirmPasswordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New passwords do not match')),
       );
       return;
     }
@@ -75,7 +126,7 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
       final user = FirebaseAuth.instance.currentUser;
       final cred = EmailAuthProvider.credential(
         email: user?.email ?? '',
-        password: _oldPasswordController.text,
+        password: _currentPasswordController.text,
       );
 
       // Reauthenticate user
@@ -87,8 +138,9 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
       // Clear fields and hide form
       setState(() {
         _isChangingPassword = false;
-        _oldPasswordController.clear();
+        _currentPasswordController.clear();
         _newPasswordController.clear();
+        _confirmPasswordController.clear();
       });
 
       if (context.mounted) {
@@ -99,7 +151,7 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'Password change failed';
       if (e.code == 'wrong-password') {
-        errorMessage = 'Incorrect old password';
+        errorMessage = 'Incorrect current password';
       } else if (e.code == 'weak-password') {
         errorMessage = 'New password is too weak';
       }
@@ -189,6 +241,11 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
                     onPressed: () {
                       setState(() {
                         _isChangingPassword = !_isChangingPassword;
+                        if (!_isChangingPassword) {
+                          _currentPasswordController.clear();
+                          _newPasswordController.clear();
+                          _confirmPasswordController.clear();
+                        }
                       });
                     },
                     child: const Text(
@@ -200,10 +257,10 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
                   if (_isChangingPassword) ...[
                     const SizedBox(height: 10),
                     TextField(
-                      controller: _oldPasswordController,
+                      controller: _currentPasswordController,
                       obscureText: true,
                       decoration: const InputDecoration(
-                        labelText: 'Old Password',
+                        labelText: 'Current Password',
                         labelStyle: TextStyle(color: Colors.grey),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: Colors.grey),
@@ -231,9 +288,35 @@ class _CinemaSettingsScreenState extends State<CinemaSettingsScreen> {
                       style: const TextStyle(color: Colors.white),
                     ),
                     const SizedBox(height: 10),
+                    TextField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm New Password',
+                        labelStyle: TextStyle(color: Colors.grey),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.green),
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    const SizedBox(height: 10),
                     AppButton(
                       text: 'Change',
-                      onPressed: _changePassword,
+                      onPressed: () {
+                        if (_currentPasswordController.text.isNotEmpty &&
+                            _newPasswordController.text.isNotEmpty &&
+                            _confirmPasswordController.text.isNotEmpty) {
+                          _showConfirmationDialog();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please fill all fields')),
+                          );
+                        }
+                      },
                       isLoading: _isLoading,
                     ),
                     const SizedBox(height: 10),

@@ -18,6 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isChangingPassword = false;
   final TextEditingController _oldPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
   bool _isLoading = false;
   String _username = '@USERNAME'; // Default value
   late StreamSubscription<DocumentSnapshot> _userSubscription;
@@ -32,6 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void dispose() {
     _oldPasswordController.dispose();
     _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
     _userSubscription.cancel();
     super.dispose();
   }
@@ -53,11 +55,60 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  Future<void> _showConfirmationDialog() async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1a1a1a),
+          title: const Text(
+            'Confirm Password Change',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: const Text(
+            'Are you sure you want to change your password?',
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: Colors.grey),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            TextButton(
+              child: const Text(
+                'Yes',
+                style: TextStyle(color: Colors.green),
+              ),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _changePassword();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> _changePassword() async {
     if (_oldPasswordController.text.isEmpty || 
-        _newPasswordController.text.isEmpty) {
+        _newPasswordController.text.isEmpty || 
+        _confirmPasswordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill all fields')),
+      );
+      return;
+    }
+
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New passwords do not match')),
       );
       return;
     }
@@ -89,6 +140,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _isChangingPassword = false;
         _oldPasswordController.clear();
         _newPasswordController.clear();
+        _confirmPasswordController.clear();
       });
 
       if (context.mounted) {
@@ -99,7 +151,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     } on FirebaseAuthException catch (e) {
       String errorMessage = 'Password change failed';
       if (e.code == 'wrong-password') {
-        errorMessage = 'Incorrect old password';
+        errorMessage = 'Incorrect current password';
       } else if (e.code == 'weak-password') {
         errorMessage = 'New password is too weak';
       }
@@ -188,6 +240,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     onPressed: () {
                       setState(() {
                         _isChangingPassword = !_isChangingPassword;
+                        if (!_isChangingPassword) {
+                          _oldPasswordController.clear();
+                          _newPasswordController.clear();
+                          _confirmPasswordController.clear();
+                        }
                       });
                     },
                     child: const Text(
@@ -202,7 +259,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       controller: _oldPasswordController,
                       obscureText: true,
                       decoration: const InputDecoration(
-                        labelText: 'Old Password',
+                        labelText: 'Current Password',
                         labelStyle: TextStyle(color: Colors.grey),
                         enabledBorder: UnderlineInputBorder(
                           borderSide: BorderSide(color: Colors.grey),
@@ -230,9 +287,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       style: const TextStyle(color: Colors.white),
                     ),
                     const SizedBox(height: 10),
+                    TextField(
+                      controller: _confirmPasswordController,
+                      obscureText: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Confirm New Password',
+                        labelStyle: TextStyle(color: Colors.grey),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.grey),
+                        ),
+                        focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.green),
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white),
+                    ),
+                    const SizedBox(height: 10),
                     AppButton(
                       text: 'Change',
-                      onPressed: _changePassword,
+                      onPressed: () {
+                        if (_oldPasswordController.text.isNotEmpty &&
+                            _newPasswordController.text.isNotEmpty &&
+                            _confirmPasswordController.text.isNotEmpty) {
+                          _showConfirmationDialog();
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please fill all fields')),
+                          );
+                        }
+                      },
                       isLoading: _isLoading,
                     ),
                     const SizedBox(height: 10),

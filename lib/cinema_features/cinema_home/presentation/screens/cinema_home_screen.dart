@@ -57,7 +57,7 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
-        title: const Text('CINEMA ADMIN DASHBOARD'),
+        title: const Text('POSTED MOVIES'),
         backgroundColor: const Color(0xFF121212),
         foregroundColor: Colors.green,
         toolbarHeight: 40,

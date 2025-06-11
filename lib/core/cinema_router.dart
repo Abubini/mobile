@@ -11,7 +11,7 @@ import '../cinema_features/cinema_auth/screens/cinema_signup_screen.dart';
 import '../cinema_features/qr_code/screens/scan_qr_screen.dart';
 
 final cinemaRouter = GoRouter(
-  initialLocation: '/cinema/login',
+  initialLocation: '/cinema/home',
   routes: [
     GoRoute(
       path: '/cinema/login',
