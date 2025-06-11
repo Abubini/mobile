@@ -1,3 +1,4 @@
+import 'package:cinema_app/features/home/data/models/movie_model.dart';
 import 'package:cinema_app/features/home/presentation/providers/home_provider.dart';
 import 'package:cinema_app/features/home/presentation/screens/settings_screen.dart';
 import 'package:flutter/material.dart';
@@ -16,18 +17,16 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool _isSearchExpanded = false;
   bool _isFilterExpanded = false;
-  String? _selectedFilter;
   final TextEditingController _searchController = TextEditingController();
   String? _selectedButton;
 
-  final List<String> _filterOptions = [
-    'Action',
-    'Space',
-    'Fantasy',
-    'Romantic',
-    'Dark',
-    'Stage',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<HomeProvider>(context, listen: false).fetchMovies();
+    });
+  }
 
   @override
   void dispose() {
@@ -39,6 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final homeProvider = Provider.of<HomeProvider>(context);
     final movies = homeProvider.movies;
+    final cinemas = homeProvider.cinemas;
+    final selectedCinema = homeProvider.selectedCinema;
 
     if (homeProvider.isLoading) {
       return const Center(child: CircularProgressIndicator());
@@ -74,6 +75,12 @@ class _HomeScreenState extends State<HomeScreen> {
               homeProvider.searchMovies('');
             });
           }
+          if (_isFilterExpanded) {
+            setState(() {
+              _isFilterExpanded = false;
+              _selectedButton = null;
+            });
+          }
         },
         child: Stack(
           children: [
@@ -94,26 +101,27 @@ class _HomeScreenState extends State<HomeScreen> {
                           setState(() {
                             _isSearchExpanded = true;
                             _isFilterExpanded = false;
-                            _selectedFilter = null;
                             _selectedButton = 'Search';
                           });
                         }, _selectedButton == 'Search'),
-                        _buildCustomButton('Filter', () {
-                          setState(() {
-                            _isFilterExpanded = true;
-                            _isSearchExpanded = false;
-                            _searchController.clear();
-                            _selectedButton = 'Filter';
-                            homeProvider.searchMovies('');
-                          });
-                        }, _selectedButton == 'Filter'),
+                        if (selectedCinema != null) 
+                          _buildCinemaFilterButton(selectedCinema!)
+                        else
+                          _buildCustomButton('Filter', () {
+                            setState(() {
+                              _isFilterExpanded = true;
+                              _isSearchExpanded = false;
+                              _searchController.clear();
+                              _selectedButton = 'Filter';
+                            });
+                          }, _selectedButton == 'Filter'),
                       ],
                     ),
                   ),
 
                   if (_isSearchExpanded) _buildSearchField(),
 
-                  if (_isFilterExpanded) _buildFilterChips(),
+                  if (_isFilterExpanded) _buildCinemaFilterOptions(cinemas),
 
                   Padding(
                     padding: const EdgeInsets.all(16),
@@ -151,7 +159,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: () {
                   setState(() {
                     _isFilterExpanded = false;
-                    _selectedFilter = null;
                   });
                 },
                 behavior: HitTestBehavior.opaque,
@@ -160,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => context.go('/tickets'),
+        onPressed: () => context.push('/tickets'),
         backgroundColor: Colors.green,
         child: const Icon(Icons.confirmation_number),
       ),
@@ -181,6 +188,70 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Text(label),
     );
   }
+
+  Widget _buildCinemaFilterButton(Cinema cinema) {
+    return ElevatedButton(
+      onPressed: () {
+        Provider.of<HomeProvider>(context, listen: false).filterByCinema(null);
+      },
+      style: ElevatedButton.styleFrom(
+        foregroundColor: Colors.white,
+        backgroundColor: Colors.green,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Flexible(
+            child: Text(
+              cinema.name,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.close, size: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCinemaFilterOptions(List<Cinema> cinemas) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+    child: Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: cinemas.map((cinema) {
+        return ChoiceChip(
+          label: Text(cinema.name),
+          selected: false,
+          onSelected: (selected) async {
+            print('Selected cinema: ${cinema.name} (ID: ${cinema.id})');
+            
+            // Show loading state
+            setState(() {
+              _isFilterExpanded = false;
+              _selectedButton = null;
+            });
+            
+            // Filter by cinema
+            await Provider.of<HomeProvider>(context, listen: false)
+                .filterByCinema(cinema);
+            
+            print('Filtering completed');
+          },
+          selectedColor: Colors.green,
+          labelStyle: const TextStyle(color: Colors.white70),
+          backgroundColor: const Color(0xFF2d2d2d),
+        );
+      }).toList(),
+    ),
+  );
+}
 
   Widget _buildSearchField() {
     return Padding(
@@ -206,32 +277,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         style: const TextStyle(color: Colors.white),
         cursorColor: Colors.green,
-      ),
-    );
-  }
-
-  Widget _buildFilterChips() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: _filterOptions.map((filter) {
-          return ChoiceChip(
-            label: Text(filter),
-            selected: _selectedFilter == filter,
-            onSelected: (selected) {
-              setState(() {
-                _selectedFilter = selected ? filter : null;
-              });
-            },
-            selectedColor: Colors.green,
-            labelStyle: TextStyle(
-              color: _selectedFilter == filter ? Colors.white : Colors.white70,
-            ),
-            backgroundColor: const Color(0xFF2d2d2d),
-          );
-        }).toList(),
       ),
     );
   }

@@ -32,6 +32,8 @@ class _TicketsScreenState extends State<TicketsScreen> {
     builder: (context) => CancelTicketDialog(
       movieName: ticket.movieName,
       date: formattedDate,
+      time: ticket.time,
+      seats: ticket.seats.join(', '),
       onConfirm: () => _cancelTicket(context, ticket),
     ),
   );
