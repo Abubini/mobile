@@ -15,9 +15,7 @@ class CinemaHomeScreen extends StatefulWidget {
 
 class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
   bool _isSearchExpanded = false;
-  bool _isFilterExpanded = false;
   final TextEditingController _searchController = TextEditingController();
-  String? _selectedButton;
 
   @override
   void initState() {
@@ -70,14 +68,7 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
             setState(() {
               _isSearchExpanded = false;
               _searchController.clear();
-              _selectedButton = null;
               cinemaProvider.searchMovies('');
-            });
-          }
-          if (_isFilterExpanded) {
-            setState(() {
-              _isFilterExpanded = false;
-              _selectedButton = null;
             });
           }
         },
@@ -88,35 +79,18 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildCustomButton('Search', () {
-                        if (_isSearchExpanded && _searchController.text.isNotEmpty) {
-                          cinemaProvider.searchMovies(_searchController.text);
-                        }
-                        setState(() {
-                          _isSearchExpanded = true;
-                          _isFilterExpanded = false;
-                          _selectedButton = 'Search';
-                        });
-                      }, _selectedButton == 'Search'),
-                      _buildCustomButton('Filter', () {
-                        setState(() {
-                          _isFilterExpanded = true;
-                          _isSearchExpanded = false;
-                          _searchController.clear();
-                          _selectedButton = 'Filter';
-                          cinemaProvider.searchMovies('');
-                        });
-                      }, _selectedButton == 'Filter'),
+                      _buildSearchButton(),
+                      if (_isSearchExpanded) 
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.only(left: 8),
+                            child: _buildSearchField(),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-
-                if (_isSearchExpanded) _buildSearchField(),
-
-                if (_isFilterExpanded) _buildFilterChips(),
-
                 Expanded(
                   child: cinemaProvider.isLoading
                       ? const Center(child: CircularProgressIndicator())
@@ -154,16 +128,6 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
                 ),
               ],
             ),
-
-            if (_isFilterExpanded)
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _isFilterExpanded = false;
-                  });
-                },
-                behavior: HitTestBehavior.opaque,
-              ),
           ],
         ),
       ),
@@ -189,81 +153,62 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
     );
   }
 
-  Widget _buildCustomButton(String label, VoidCallback onPressed, bool isSelected) {
+  Widget _buildSearchButton() {
     return ElevatedButton(
-      onPressed: onPressed,
+      onPressed: () {
+        if (_isSearchExpanded && _searchController.text.isNotEmpty) {
+          Provider.of<CinemaHomeProvider>(context, listen: false)
+              .searchMovies(_searchController.text);
+        }
+        setState(() {
+          _isSearchExpanded = !_isSearchExpanded;
+          if (!_isSearchExpanded) {
+            _searchController.clear();
+            Provider.of<CinemaHomeProvider>(context, listen: false)
+                .searchMovies('');
+          }
+        });
+      },
       style: ElevatedButton.styleFrom(
-        foregroundColor: isSelected ? Colors.white : Colors.green,
-        backgroundColor: isSelected ? Colors.green : const Color(0xFF2d2d2d),
+        foregroundColor: _isSearchExpanded ? Colors.white : Colors.green,
+        backgroundColor: _isSearchExpanded ? Colors.green : const Color(0xFF2d2d2d),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
       ),
-      child: Text(label),
+      child: const Text('Search'),
     );
   }
 
   Widget _buildSearchField() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: TextField(
-        controller: _searchController,
-        autofocus: true,
-        decoration: InputDecoration(
-          hintText: 'Search...',
-          hintStyle: const TextStyle(color: Colors.white70),
-          border: InputBorder.none,
-          suffixIcon: IconButton(
-            icon: const Icon(Icons.close, color: Colors.white70),
-            onPressed: () {
-              setState(() {
-                _isSearchExpanded = false;
-                _searchController.clear();
-                _selectedButton = null;
-              });
-              Provider.of<CinemaHomeProvider>(context, listen: false).searchMovies('');
-            },
-          ),
+    return TextField(
+      controller: _searchController,
+      autofocus: true,
+      decoration: InputDecoration(
+        hintText: 'Search...',
+        hintStyle: const TextStyle(color: Colors.white70),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
         ),
-        style: const TextStyle(color: Colors.white),
-        cursorColor: Colors.green,
-        onChanged: (value) {
-          // Optional: Implement live search
-          // Provider.of<CinemaHomeProvider>(context, listen: false).searchMovies(value);
-        },
+        filled: true,
+        fillColor: const Color(0xFF2d2d2d),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.search, color: Colors.green),
+          onPressed: () {
+            Provider.of<CinemaHomeProvider>(context, listen: false)
+                .searchMovies(_searchController.text);
+          },
+        ),
       ),
-    );
-  }
-
-  Widget _buildFilterChips() {
-    final List<String> _filterOptions = [
-      'Action',
-      'Comedy',
-      'Drama',
-      'Horror',
-      'Sci-Fi',
-      'Romance',
-    ];
-    
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: _filterOptions.map((filter) {
-          return ChoiceChip(
-            label: Text(filter),
-            selected: false,
-            onSelected: (selected) {
-              // Implement genre filter if needed
-            },
-            selectedColor: Colors.green,
-            labelStyle: const TextStyle(color: Colors.white70),
-            backgroundColor: const Color(0xFF2d2d2d),
-          );
-        }).toList(),
-      ),
+      style: const TextStyle(color: Colors.white),
+      cursorColor: Colors.green,
+      onSubmitted: (value) {
+        Provider.of<CinemaHomeProvider>(context, listen: false)
+            .searchMovies(value);
+      },
     );
   }
 }
