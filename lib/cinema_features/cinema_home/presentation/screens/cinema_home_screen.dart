@@ -13,22 +13,11 @@ class CinemaHomeScreen extends StatefulWidget {
   State<CinemaHomeScreen> createState() => _CinemaHomeScreenState();
 }
 
-
 class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
   bool _isSearchExpanded = false;
   bool _isFilterExpanded = false;
-  String? _selectedFilter;
   final TextEditingController _searchController = TextEditingController();
   String? _selectedButton;
-
-  final List<String> _filterOptions = [
-    'Action',
-    'Comedy',
-    'Drama',
-    'Horror',
-    'Sci-Fi',
-    'Romance',
-  ];
 
   @override
   void initState() {
@@ -47,7 +36,6 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
     _searchController.dispose();
     super.dispose();
   }
-  
 
   @override
   Widget build(BuildContext context) {
@@ -83,6 +71,13 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
               _isSearchExpanded = false;
               _searchController.clear();
               _selectedButton = null;
+              cinemaProvider.searchMovies('');
+            });
+          }
+          if (_isFilterExpanded) {
+            setState(() {
+              _isFilterExpanded = false;
+              _selectedButton = null;
             });
           }
         },
@@ -96,10 +91,12 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       _buildCustomButton('Search', () {
+                        if (_isSearchExpanded && _searchController.text.isNotEmpty) {
+                          cinemaProvider.searchMovies(_searchController.text);
+                        }
                         setState(() {
                           _isSearchExpanded = true;
                           _isFilterExpanded = false;
-                          _selectedFilter = null;
                           _selectedButton = 'Search';
                         });
                       }, _selectedButton == 'Search'),
@@ -109,6 +106,7 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
                           _isSearchExpanded = false;
                           _searchController.clear();
                           _selectedButton = 'Filter';
+                          cinemaProvider.searchMovies('');
                         });
                       }, _selectedButton == 'Filter'),
                     ],
@@ -116,6 +114,7 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
                 ),
 
                 if (_isSearchExpanded) _buildSearchField(),
+
                 if (_isFilterExpanded) _buildFilterChips(),
 
                 Expanded(
@@ -161,7 +160,6 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
                 onTap: () {
                   setState(() {
                     _isFilterExpanded = false;
-                    _selectedFilter = null;
                   });
                 },
                 behavior: HitTestBehavior.opaque,
@@ -195,7 +193,7 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
     return ElevatedButton(
       onPressed: onPressed,
       style: ElevatedButton.styleFrom(
-        foregroundColor: isSelected ? Colors.white : Colors.green, 
+        foregroundColor: isSelected ? Colors.white : Colors.green,
         backgroundColor: isSelected ? Colors.green : const Color(0xFF2d2d2d),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         shape: RoundedRectangleBorder(
@@ -214,23 +212,40 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
         autofocus: true,
         decoration: InputDecoration(
           hintText: 'Search...',
+          hintStyle: const TextStyle(color: Colors.white70),
           border: InputBorder.none,
           suffixIcon: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(Icons.close, color: Colors.white70),
             onPressed: () {
               setState(() {
                 _isSearchExpanded = false;
                 _searchController.clear();
                 _selectedButton = null;
               });
+              Provider.of<CinemaHomeProvider>(context, listen: false).searchMovies('');
             },
           ),
         ),
+        style: const TextStyle(color: Colors.white),
+        cursorColor: Colors.green,
+        onChanged: (value) {
+          // Optional: Implement live search
+          // Provider.of<CinemaHomeProvider>(context, listen: false).searchMovies(value);
+        },
       ),
     );
   }
 
   Widget _buildFilterChips() {
+    final List<String> _filterOptions = [
+      'Action',
+      'Comedy',
+      'Drama',
+      'Horror',
+      'Sci-Fi',
+      'Romance',
+    ];
+    
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Wrap(
@@ -239,16 +254,12 @@ class _CinemaHomeScreenState extends State<CinemaHomeScreen> {
         children: _filterOptions.map((filter) {
           return ChoiceChip(
             label: Text(filter),
-            selected: _selectedFilter == filter,
+            selected: false,
             onSelected: (selected) {
-              setState(() {
-                _selectedFilter = selected ? filter : null;
-              });
+              // Implement genre filter if needed
             },
             selectedColor: Colors.green,
-            labelStyle: TextStyle(
-              color: _selectedFilter == filter ? Colors.white : Colors.white70,
-            ),
+            labelStyle: const TextStyle(color: Colors.white70),
             backgroundColor: const Color(0xFF2d2d2d),
           );
         }).toList(),
