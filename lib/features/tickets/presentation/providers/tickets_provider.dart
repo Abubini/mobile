@@ -50,7 +50,9 @@ class TicketsProvider with ChangeNotifier {
         time: booking.time,
         theater: cinemaDoc['name'] ?? 'Unknown Cinema',
         seats: booking.seats,
-        cost: '${booking.totalCost} ETB',
+        cost: '${booking.totalCost} ETB', 
+        movieId: booking.movieId, 
+        cinemaId: booking.cinemaId,
       );
     }));
     
@@ -67,4 +69,34 @@ class TicketsProvider with ChangeNotifier {
     _tickets.insert(0, ticket);
     notifyListeners();
   }
+
+  // Update ticket_provider.dart
+Future<void> cancelTicket({
+  required String bookingId,
+  required String userId,
+  required String movieId,
+  required String cinemaId,
+  required DateTime date,
+  required String time,
+  required List<String> seats,
+}) async {
+  try {
+    await _bookingRepository.cancelTicket(
+      bookingId: bookingId,
+      userId: userId,
+      movieId: movieId,
+      cinemaId: cinemaId,
+      date: date,
+      time: time,
+      seats: seats,
+    );
+    
+    // Remove the ticket from local state
+    _tickets.removeWhere((ticket) => ticket.id == bookingId);
+    notifyListeners();
+  } catch (e) {
+    debugPrint('Error cancelling ticket: $e');
+    rethrow;
+  }
+}
 }

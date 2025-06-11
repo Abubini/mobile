@@ -158,7 +158,9 @@ class BookingRepository {
         time: time,
         theater: cinemaName,
         seats: seats,
-        cost: '${seats.length * seatPrice} ETB',
+        cost: '${seats.length * seatPrice} ETB', 
+        movieId: movieId, 
+        cinemaId: cinemaId,
       );
     } catch (e) {
       print('Error booking tickets: $e');
@@ -190,4 +192,93 @@ class BookingRepository {
       return [];
     }
   }
+  Future<void> cancelTicket({
+  required String bookingId,
+  required String userId,
+  required String movieId,
+  required String cinemaId,
+  required DateTime date,
+  required String time,
+  required List<String> seats,
+}) async {
+  try {
+    // 1. Delete from user's bookings subcollection
+    await _firestore
+        .collection('users')
+        .doc(userId)
+        .collection('bookings')
+        .doc(bookingId)
+        .delete();
+
+    // 2. Delete from global bookings collection
+    final globalBookingQuery = await _firestore
+        .collection('bookings')
+        .where('userId', isEqualTo: userId)
+        .where('movieId', isEqualTo: movieId)
+        .where('cinemaId', isEqualTo: cinemaId)
+        .where('date', isEqualTo: date.toIso8601String())
+        .where('time', isEqualTo: time)
+        .limit(1)
+        .get();
+
+    if (globalBookingQuery.docs.isNotEmpty) {
+      await _firestore
+          .collection('bookings')
+          .doc(globalBookingQuery.docs.first.id)
+          .delete();
+    }
+
+    // 3. Remove seats from showtime's bookedSeats
+    final movieRef = _firestore
+        .collection('cinemas')
+        .doc(cinemaId)
+        .collection('movies')
+        .doc(movieId);
+
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(movieRef);
+      
+      if (!snapshot.exists) {
+        throw Exception('Movie document not found');
+      }
+      
+      final data = snapshot.data();
+      if (data == null || !data.containsKey('showTimes')) {
+        throw Exception('ShowTimes not found for movie');
+      }
+
+      final showTimes = List<dynamic>.from(data['showTimes'] as List);
+
+      // Update the specific showtime
+      final updatedShowTimes = showTimes.map((st) {
+        try {
+          final showTime = Map<String, dynamic>.from(st as Map<String, dynamic>);
+          final showTimeDate = showTime['date'] as String?;
+          final showTimeTime = showTime['time'] as String?;
+          
+          final targetDateString = date.toIso8601String().split('T')[0];
+          
+          if (showTimeDate == targetDateString && showTimeTime == time) {
+            final bookedSeats = List<String>.from(showTime['bookedSeats'] as List? ?? []);
+            // Remove all cancelled seats
+            final updatedBookedSeats = bookedSeats.where((seat) => !seats.contains(seat)).toList();
+            return {
+              ...showTime,
+              'bookedSeats': updatedBookedSeats,
+            };
+          }
+          return showTime;
+        } catch (e) {
+          print('Error processing showtime: $e');
+          return st;
+        }
+      }).toList();
+
+      transaction.update(movieRef, {'showTimes': updatedShowTimes});
+    });
+  } catch (e) {
+    print('Error cancelling ticket: $e');
+    throw Exception('Failed to cancel ticket: ${e.toString()}');
+  }
+}
 }

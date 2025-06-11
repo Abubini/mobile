@@ -1,6 +1,8 @@
 class Ticket {
   final String id;
   final String movieName;
+  final String movieId; // Add this
+  final String cinemaId; // Add this
   final String genre;
   final String date;
   final String time;
@@ -11,6 +13,8 @@ class Ticket {
   Ticket({
     required this.id,
     required this.movieName,
+    required this.movieId,
+    required this.cinemaId,
     required this.genre,
     required this.date,
     required this.time,

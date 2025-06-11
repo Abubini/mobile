@@ -1,11 +1,15 @@
-import 'package:flutter/material.dart';
+// Update ticket_item_widget.dart
 import 'package:cinema_app/features/tickets/data/models/ticket_model.dart';
-import '../../../../shared/widgets/ticket_menu_widget.dart';
+// import 'package:cinema_app/features/tickets/widgets/cancel_ticket_dialog.dart';
+import 'package:cinema_app/shared/widgets/ticket_menu_widget.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 class TicketItemWidget extends StatelessWidget {
   final Ticket ticket;
   final VoidCallback onTap;
-  final VoidCallback onDelete;
+  final Function(BuildContext) onDelete; // Changed to accept context
   final GlobalKey qrKey = GlobalKey();
 
   TicketItemWidget({
@@ -53,7 +57,7 @@ class TicketItemWidget extends StatelessWidget {
               ),
               TicketMenuWidget(
                 ticket: ticket,
-                onDelete: onDelete,
+                onDelete: () => onDelete(context), // Pass context here
                 onReschedule: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Reschedule feature coming soon!')),

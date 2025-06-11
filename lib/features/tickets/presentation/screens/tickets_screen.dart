@@ -1,5 +1,9 @@
+import 'package:cinema_app/features/tickets/data/models/ticket_model.dart';
 import 'package:cinema_app/features/tickets/presentation/providers/tickets_provider.dart';
+import 'package:cinema_app/features/tickets/presentation/widgets/cancel_ticket_dialog.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../widgets/ticket_item_widget.dart';
@@ -19,6 +23,54 @@ class _TicketsScreenState extends State<TicketsScreen> {
       Provider.of<TicketsProvider>(context, listen: false).loadUserTickets();
     });
   }
+  void _showCancelDialog(BuildContext context, Ticket ticket) {
+  final dateFormat = DateFormat('MMM dd, yyyy');
+  final formattedDate = dateFormat.format(ticket.dateTime);
+
+  showDialog(
+    context: context,
+    builder: (context) => CancelTicketDialog(
+      movieName: ticket.movieName,
+      date: formattedDate,
+      onConfirm: () => _cancelTicket(context, ticket),
+    ),
+  );
+}
+
+Future<void> _cancelTicket(BuildContext context, Ticket ticket) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return;
+
+  // Store the messenger reference before the async operation
+  final messenger = ScaffoldMessenger.of(context);
+
+  try {
+    final dateParts = ticket.date.split('/');
+    final date = DateTime(
+      int.parse(dateParts[2]),
+      int.parse(dateParts[1]),
+      int.parse(dateParts[0]),
+    );
+
+    await context.read<TicketsProvider>().cancelTicket(
+      bookingId: ticket.id,
+      userId: user.uid,
+      movieId: ticket.movieId,
+      cinemaId: ticket.cinemaId,
+      date: date,
+      time: ticket.time,
+      seats: ticket.seats,
+    );
+
+    messenger.showSnackBar(
+      SnackBar(content: Text('Ticket cancelled successfully')),
+    );
+  } catch (e) {
+    messenger.showSnackBar(
+      SnackBar(content: Text('Failed to cancel ticket: ${e.toString()}')),
+    );
+  }
+}
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +108,7 @@ class _TicketsScreenState extends State<TicketsScreen> {
                       return TicketItemWidget(
                         ticket: ticket,
                         onTap: () => context.go('/ticket-detail', extra: ticket),
-                        onDelete: () {}, // Keep empty for now
+                         onDelete: (context) => _showCancelDialog(context, ticket), // Keep empty for now
                       );
                     },
                   ),
