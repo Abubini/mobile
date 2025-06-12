@@ -32,6 +32,8 @@ class CinemaAuthProvider with ChangeNotifier {
     }
   }
 
+  
+
   Future<void> sendPasswordResetCode(String phoneOrEmail) async {
     await _authRepository.sendPasswordResetCode(phoneOrEmail);
   }
