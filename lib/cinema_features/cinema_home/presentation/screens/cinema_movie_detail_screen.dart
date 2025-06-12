@@ -99,20 +99,74 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
     return result.trim();
   }
 
-  List<String> _getTimesForSelectedDay() {
-    if (_selectedDay == null) return [];
-    
-    final showTimes = widget.movie['showTimes'] as List<dynamic>? ?? [];
-    return showTimes
-        .where((st) {
-          final showDate = (st['timestamp'] as Timestamp).toDate();
-          return showDate.year == _selectedDay!.year &&
-                 showDate.month == _selectedDay!.month &&
-                 showDate.day == _selectedDay!.day;
-        })
-        .map((st) => st['time'] as String? ?? 'Time')
-        .toList();
+  // Add these helper methods to your _CinemaMovieDetailScreenState class:
+
+bool _hasShowOnDay(DateTime day) {
+  final showTimes = widget.movie['showTimes'] as List<dynamic>? ?? [];
+  
+  for (var showTime in showTimes) {
+    if (showTime['isRecurring'] == true) {
+      // For recurring shows, check if the day matches the dayOfWeek
+      final dayOfWeek = showTime['dayOfWeek']?.toString().toLowerCase() ?? '';
+      final dayName = _getDayName(day.weekday).toLowerCase();
+      if (dayOfWeek.contains(dayName)) {
+        return true;
+      }
+    } else {
+      // For one-time shows, check if the date matches
+      final showDate = (showTime['timestamp'] as Timestamp).toDate();
+      if (showDate.year == day.year &&
+          showDate.month == day.month &&
+          showDate.day == day.day) {
+        return true;
+      }
+    }
   }
+  return false;
+}
+
+String _getDayName(int weekday) {
+  switch (weekday) {
+    case 1: return 'Monday';
+    case 2: return 'Tuesday';
+    case 3: return 'Wednesday';
+    case 4: return 'Thursday';
+    case 5: return 'Friday';
+    case 6: return 'Saturday';
+    case 7: return 'Sunday';
+    default: return '';
+  }
+}
+
+// Update your existing _getTimesForSelectedDay method to handle recurring shows:
+List<String> _getTimesForSelectedDay() {
+  if (_selectedDay == null) return [];
+  
+  final showTimes = widget.movie['showTimes'] as List<dynamic>? ?? [];
+  List<String> times = [];
+  
+  for (var showTime in showTimes) {
+    if (showTime['isRecurring'] == true) {
+      // For recurring shows, check if the selected day matches the dayOfWeek
+      final dayOfWeek = showTime['dayOfWeek']?.toString().toLowerCase() ?? '';
+      final dayName = _getDayName(_selectedDay!.weekday).toLowerCase();
+      if (dayOfWeek.contains(dayName)) {
+        times.add(showTime['time'] as String? ?? 'Time');
+      }
+    } else {
+      // For one-time shows, check if the date matches
+      final showDate = (showTime['timestamp'] as Timestamp).toDate();
+      if (showDate.year == _selectedDay!.year &&
+          showDate.month == _selectedDay!.month &&
+          showDate.day == _selectedDay!.day) {
+        times.add(showTime['time'] as String? ?? 'Time');
+      }
+    }
+  }
+  
+  return times;
+}
+  
 
   @override
   void dispose() {
@@ -348,16 +402,20 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                         ),
                         padding: const EdgeInsets.all(8),
                         child: TableCalendar(
-                          firstDay: showDates.reduce((a, b) => a.isBefore(b) ? a : b),
-                          lastDay: showDates.reduce((a, b) => a.isAfter(b) ? a : b),
+                          // Fix: Use a reasonable date range instead of trying to calculate from potentially empty show dates
+                          firstDay: DateTime.now().subtract(const Duration(days: 30)),
+                          lastDay: DateTime.now().add(const Duration(days: 365)),
                           focusedDay: _focusedDay,
                           calendarFormat: _calendarFormat,
                           selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
                           onDaySelected: (selectedDay, focusedDay) {
-                            setState(() {
-                              _selectedDay = selectedDay;
-                              _focusedDay = focusedDay;
-                            });
+                            // Only allow selection of days that have shows
+                            if (_hasShowOnDay(selectedDay)) {
+                              setState(() {
+                                _selectedDay = selectedDay;
+                                _focusedDay = focusedDay;
+                              });
+                            }
                           },
                           onFormatChanged: (format) => setState(() => _calendarFormat = format),
                           onPageChanged: (focusedDay) => _focusedDay = focusedDay,
@@ -366,7 +424,7 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                             CalendarFormat.week: 'Week',
                           },
                           calendarStyle: CalendarStyle(
-                            selectedDecoration: BoxDecoration(
+                            selectedDecoration: const BoxDecoration(
                               color: Colors.green,
                               shape: BoxShape.circle,
                             ),
@@ -374,7 +432,7 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                               color: Colors.green.withOpacity(0.5),
                               shape: BoxShape.circle,
                             ),
-                            markerDecoration: BoxDecoration(
+                            markerDecoration: const BoxDecoration(
                               color: Colors.green,
                               shape: BoxShape.circle,
                             ),
@@ -399,13 +457,20 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                           ),
                           calendarBuilders: CalendarBuilders(
                             defaultBuilder: (context, day, focusedDay) {
-                              final isShowDay = showDates.any((date) => isSameDay(date, day));
-                              return Center(
-                                child: Text(
-                                  day.day.toString(),
-                                  style: TextStyle(
-                                    color: isShowDay ? Colors.white : Colors.grey,
-                                    fontWeight: isShowDay ? FontWeight.bold : FontWeight.normal,
+                              final hasShow = _hasShowOnDay(day);
+                              return Container(
+                                margin: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: hasShow ? Colors.green.withOpacity(0.3) : Colors.transparent,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    day.day.toString(),
+                                    style: TextStyle(
+                                      color: hasShow ? Colors.white : Colors.grey,
+                                      fontWeight: hasShow ? FontWeight.bold : FontWeight.normal,
+                                    ),
                                   ),
                                 ),
                               );
@@ -416,26 +481,21 @@ class _CinemaMovieDetailScreenState extends State<CinemaMovieDetailScreen> {
                       const SizedBox(height: 16),
                       
                       // Show times for selected day
-                      if (timesForSelectedDay.isNotEmpty) ...[
-                        const Text(
-                          'Times for selected day:',
-                          style: TextStyle(
+                      if (_selectedDay != null && _getTimesForSelectedDay().isNotEmpty) ...[
+                        Text(
+                          'Time for ${DateFormat('MMM dd, yyyy').format(_selectedDay!)}:',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          children: timesForSelectedDay.map((time) {
-                            return Chip(
-                              label: Text(
-                                time,
-                                style: const TextStyle(color: Colors.white),
-                              ),
-                              backgroundColor: Colors.green,
-                            );
-                          }).toList(),
+                        Chip(
+                          label: Text(
+                            _getTimesForSelectedDay().first, // Only show the first time
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                          backgroundColor: Colors.green,
                         ),
                       ],
                     ],
